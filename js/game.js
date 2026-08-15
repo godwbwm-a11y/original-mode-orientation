@@ -1,4 +1,4 @@
-import { STAGES, DISCOVERIES, INTEREST_OPTIONS, GOOD_NPCS, DOORS } from "../data/orientation.js";
+import { STAGES, CITY_NPCS, DISCOVERIES, INTEREST_OPTIONS, GOOD_NPCS, DOORS } from "../data/orientation.js";
 import { writeSave } from "./storage.js";
 
 const W = 900;
@@ -30,6 +30,8 @@ export class OrientationScene extends Phaser.Scene {
     this.lastGroundedAt = 0;
     this.jumpCount = 0;
     this.doubleJumpHintShown = false;
+    this.notificationFreedom = 0;
+    this.lookUpLight = 0;
   }
 
   create() {
@@ -189,6 +191,47 @@ export class OrientationScene extends Phaser.Scene {
     this.add.circle(Math.max(120, width - 260), 260, 58, colorful ? 0xffe7a3 : 0xaeb1b9, colorful ? .8 : .25).setDepth(1);
   }
 
+  addCarloDayBackdrop(width) {
+    this.cameras.main.setBackgroundColor(0x82bde0);
+    this.add.rectangle(width / 2, H / 2, width, H, 0x82bde0).setDepth(0);
+    this.add.circle(3300, 250, 105, 0xffedaa, .8).setDepth(1);
+    const zones = [
+      { x: 0, w: 820, color: 0x79b67b, label: "학교 운동장" },
+      { x: 820, w: 860, color: 0xd7b77c, label: "학교 앞 거리" },
+      { x: 1680, w: 780, color: 0x92bfc3, label: "마을 거리" },
+      { x: 2460, w: 700, color: 0xd8c789, label: "광장" },
+      { x: 3160, w: width - 3160, color: 0xb8c3dc, label: "성당" }
+    ];
+    zones.forEach((zone, index) => {
+      this.add.rectangle(zone.x + zone.w / 2, FLOOR_Y - 250, zone.w, 500, zone.color, .62).setDepth(1);
+      this.addLabel(zone.x + 90, 250, zone.label, { size: "27px", color: "#24324a", originX: 0, strokeWidth: 0, depth: 3 });
+      if (index === 0) {
+        this.add.rectangle(zone.x + 380, FLOOR_Y - 105, 350, 10, 0xffffff, .7).setDepth(3);
+        this.add.rectangle(zone.x + 620, FLOOR_Y - 165, 14, 145, 0xffffff).setDepth(3);
+        this.add.rectangle(zone.x + 720, FLOOR_Y - 165, 14, 145, 0xffffff).setDepth(3);
+        this.add.rectangle(zone.x + 670, FLOOR_Y - 225, 114, 10, 0xffffff).setDepth(3);
+      } else if (index < 3) {
+        for (let bx = zone.x + 110; bx < zone.x + zone.w; bx += 260) {
+          this.add.rectangle(bx, FLOOR_Y - 220, 190, 330, index === 1 ? 0xcf7f68 : 0x668ba0).setDepth(2);
+          this.add.rectangle(bx, FLOOR_Y - 265, 45, 64, 0xffe6a6, .8).setDepth(3);
+        }
+      } else if (index === 3) {
+        this.add.circle(zone.x + 350, FLOOR_Y - 145, 115, 0x74a7c3).setDepth(2);
+        this.add.rectangle(zone.x + 350, FLOOR_Y - 105, 260, 30, 0xf2e4c4).setDepth(3);
+      } else {
+        const cx = zone.x + zone.w * .58;
+        this.add.rectangle(cx, FLOOR_Y - 260, 430, 500, 0xe9dfcc).setDepth(2);
+        this.add.triangle(cx, FLOOR_Y - 585, 0, 210, 430, 210, 215, 0, 0xb66d5c).setDepth(3);
+        this.add.rectangle(cx, FLOOR_Y - 350, 26, 105, 0xd29e42).setDepth(4);
+        this.add.rectangle(cx - 40, FLOOR_Y - 310, 106, 170, 0x7d5c4c).setDepth(4);
+      }
+    });
+    for (let x = 160; x < width; x += 410) {
+      const cloud = this.add.ellipse(x, 390 + (x % 3) * 55, 190, 60, 0xffffff, .55).setDepth(1);
+      this.tweens.add({ targets: cloud, x: x + 80, yoyo: true, repeat: -1, duration: 5000 + x });
+    }
+  }
+
   addStars(width = W, height = H, count = 70) {
     for (let i = 0; i < count; i++) {
       const x = (i * 211 + 87) % width;
@@ -255,17 +298,14 @@ export class OrientationScene extends Phaser.Scene {
     this.addGround(width);
     this.makePersonTexture("city-npc", 0x666b76, 0xb58b72, 0x3a3b43);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
-    const lines = [
-      "걔 팔로워 엄청 많더라.", "나는 사진 찍으면 왜 이렇게 나오지?", "내 영상은 보는 사람이 별로 없어.",
-      "쟤는 공부도 잘하네.", "난 잘하는 게 없는 것 같아.", "나도 쟤처럼 되고 싶다."
-    ];
     this.interactives = [];
-    lines.forEach((line, index) => {
+    CITY_NPCS.forEach((data, index) => {
       const x = 650 + index * 470;
       const npc = this.physics.add.sprite(x, FLOOR_Y - 70, "city-npc").setDepth(10).setImmovable(true);
       npc.body.setAllowGravity(false);
-      this.addLabel(x, FLOOR_Y - 180, String([327, 1204, 29, "7만", 804, 96][index]), { size: "21px", color: "#b7bac4" });
-      this.interactives.push({ type: "npc", x, line, npc });
+      this.addLabel(x, FLOOR_Y - 214, data.name, { size: "24px", color: "#f0e4bc" });
+      this.addLabel(x, FLOOR_Y - 178, data.number, { size: "18px", color: "#9297a8" });
+      this.interactives.push({ type: "npc", x, ...data, npc });
     });
     this.add.circle(3450, FLOOR_Y - 50, 25, 0xf4f1df).setStrokeStyle(8, 0x293048).setDepth(9);
     this.add.line(3450, FLOOR_Y - 50, -20, 0, 20, 0, 0x293048, 1).setDepth(10);
@@ -284,7 +324,11 @@ export class OrientationScene extends Phaser.Scene {
     if (this.busy || !target) return;
     this.busy = true;
     if (target.type === "npc") {
-      await this.ui.storyCard({ kicker: "도시에서 들린 말", title: "“비교하다 보니…”", html: `<p>${target.line}</p><p>이 도시는 모두가 자꾸 다른 사람을 바라보고 있어요.</p>` });
+      await this.ui.storyCard({
+        kicker: `${target.number} · ${target.name}`,
+        title: "도시에서 들린 말",
+        html: `<p><span class="speaker">${target.name}</span> “${target.line}”</p><p class="thought-line"><strong>나는 생각했다.</strong><br>‘${target.thought}’</p>`
+      });
       this.setPlay("copyCity", "복사본 도시", "오른쪽 끝에서 청바지를 입은 소년을 만나보세요.", "대화");
       this.busy = false;
       return;
@@ -294,34 +338,61 @@ export class OrientationScene extends Phaser.Scene {
 
   async meetCarloStage() {
     this.checkpoint("meetCarlo");
-    this.cameras.main.setBackgroundColor(0x314c6a);
-    this.addCityBackdrop(W, true);
+    this.mode = "meetCarlo";
+    this.cameras.main.setBackgroundColor(0x09101e);
+    this.addCityBackdrop(W, false);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x07101f, .48).setDepth(6);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
     this.makePlayerTexture();
-    this.add.image(W * .32, H * .64, "player-custom").setScale(2.1).setDepth(10);
-    this.add.image(W * .68, H * .64, "carlo").setScale(2.1).setDepth(10);
+    const light = this.add.circle(W * .68, H * .61, 230, 0xffdf86, .06).setDepth(7).setScale(.2);
+    const me = this.add.image(W * .25, H * .67, "player-custom").setScale(2.2).setDepth(10).setTint(0x71809a);
+    const carlo = this.add.image(W * .72, H * .65, "carlo").setScale(1.75).setDepth(10).setAlpha(0);
+    this.add.rectangle(W / 2, 70, W, 140, 0x000000).setDepth(30);
+    this.add.rectangle(W / 2, H - 70, W, 140, 0x000000).setDepth(30);
+    const caption = this.addLabel(W / 2, 245, "복사본 도시의 소리가\n갑자기 멀어졌다.", { size: "29px", color: "#e6e9f2", wrap: 650, depth: 31 }).setAlpha(0);
+    this.cameras.main.fadeIn(850, 0, 0, 0);
+    this.tweens.add({ targets: caption, alpha: 1, duration: 700, yoyo: true, hold: 900 });
+    await wait(2100);
+    this.tweens.add({ targets: carlo, alpha: 1, scaleX: 2.2, scaleY: 2.2, duration: 850, ease: "Sine.easeOut" });
+    this.tweens.add({ targets: light, scale: 1, alpha: .14, duration: 1000 });
+    await wait(1050);
+    const nameCard = this.addLabel(W / 2, H - 245, "카를로 아쿠티스", { size: "38px", color: "#ffd166", depth: 31 }).setAlpha(0);
+    this.tweens.add({ targets: nameCard, alpha: 1, duration: 500 });
+    await wait(700);
     await this.ui.storyCard({
-      kicker: "청바지를 입은 성인",
-      title: "카를로를 만났어요",
-      html: `<p><span class="speaker">나</span> “너 누구야?”</p><p><span class="speaker">카를로</span> “카를로.”</p><p><span class="speaker">나</span> “성인 아니야? …성인이 축구해?”</p><p><span class="speaker">카를로</span> “응! 나도 축구, 컴퓨터, 게임을 좋아했어.”</p>`
+      kicker: "장면 전환",
+      title: "청바지와 운동화를 신은 소년",
+      html: `<p>도시의 회색빛 사이로 한 소년이 보였어요.</p><p>그가 웃으며 휴대전화를 꺼냈어요. 화면에 새 메시지가 도착했어요.</p>`,
+      actions: [{ label: "메시지 열기", value: "chat", primary: true }]
     });
-    await this.ui.storyCard({
-      kicker: "카를로의 이야기",
-      title: "함께 걸어볼래?",
-      html: `<p>“나는 네가 나처럼 보였으면 하는 게 아니야.”</p><p class="big-line">“하느님께서 만드신 너 자신이 되었으면 좋겠어.”</p>`,
-      actions: [{ label: "카를로의 하루 찾아보기", value: "next", primary: true }]
+    await this.ui.chatCard({
+      kicker: "카를로와 나눈 메시지",
+      title: "카를로",
+      messages: [
+        { from: "me", text: "너는 누구야?" },
+        { from: "carlo", text: "나는 카를로야. 만나서 반가워!" },
+        { from: "me", text: "성인도 축구하고 게임을 해?" },
+        { from: "carlo", text: "그럼! 나도 축구, 컴퓨터, 게임을 정말 좋아했어." },
+        { from: "me", text: "그럼 나도 너처럼 되어야 해?" },
+        { from: "carlo", text: "내 복사본이 될 필요는 없어. 하느님께서 만드신 너 자신이 되면 돼." },
+        { from: "carlo", text: "내 평범한 하루를 함께 걸어볼래? 그 안에서 내가 가장 사랑한 분도 소개해 줄게." }
+      ],
+      button: "카를로의 하루로"
     });
+    me.clearTint();
+    this.cameras.main.fadeOut(650, 255, 232, 166);
+    await wait(680);
     this.goto("carloDay");
   }
 
   async carloDayStage() {
     this.checkpoint("carloDay");
-    const width = 3800;
+    const width = 4000;
     this.physics.world.setBounds(0, 0, width, H);
     this.cameras.main.setBounds(0, 0, width, H);
-    this.addCityBackdrop(width, true);
-    this.addGround(width, FLOOR_Y, 0x3e5360);
-    [[1040, 620, 330], [2060, 590, 330], [3200, 650, 320]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x718078));
+    this.addCarloDayBackdrop(width);
+    this.addGround(width, FLOOR_Y, 0x57785d);
+    [[1040, 620, 330], [2180, 590, 330], [3500, 650, 320]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x8b9c80));
     this.makePlayer(130, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
     this.cameras.main.startFollow(this.player, true, .14, .14, -100, 0);
@@ -344,15 +415,27 @@ export class OrientationScene extends Phaser.Scene {
     if (found.size >= DISCOVERIES.length) this.finishCarloDay();
   }
 
-  collectDiscovery(symbol) {
+  async collectDiscovery(symbol) {
     if (!symbol.active || this.busy) return;
+    this.busy = true;
+    this.physics.pause();
     const save = this.getSave();
     const discoveries = [...new Set([...(save.discoveries || []), symbol.item.id])];
     this.checkpoint("carloDay", { discoveries });
-    symbol.glow?.destroy(); symbol.destroy();
-    this.ui.toast(`${symbol.item.label} 발견 — ${symbol.item.note}`, 2600);
+    const item = symbol.item;
+    symbol.glow?.destroy(); symbol.disableBody?.(true, true); symbol.destroy();
     this.updateDiscoveryHud();
-    if (discoveries.length >= DISCOVERIES.length) setTimeout(() => this.finishCarloDay(), 900);
+    await this.ui.storyCard({
+      kicker: `${item.place} · 발견 ${discoveries.length}/6`,
+      title: `${item.symbol} ${item.label}을 찾았어요`,
+      html: `<p>${item.note}</p><p class="big-line">${item.detail}</p>`,
+      actions: [{ label: item.id === "ball" ? "카를로와 공 차기" : "계속 탐색하기", value: "next", primary: true }]
+    });
+    if (item.id === "ball") await this.ui.soccerMiniGame();
+    this.physics.resume();
+    this.setPlay("carloDay", "카를로의 하루", `발견 ${discoveries.length}/6 · 밝은 길을 계속 걸어보세요.`);
+    this.busy = false;
+    if (discoveries.length >= DISCOVERIES.length) await this.finishCarloDay();
   }
 
   updateDiscoveryHud() {
@@ -366,7 +449,7 @@ export class OrientationScene extends Phaser.Scene {
     await this.ui.storyCard({
       kicker: "여섯 가지 발견",
       title: "카를로도 우리와 비슷했어요",
-      html: `<p>학교에 가고, 친구들과 놀고, 컴퓨터와 게임도 좋아했어요.</p><p class="big-line">성인은 평범한 삶에서 하느님을 선택한 사람이에요.</p>`
+      html: `<p>학교 운동장에서 뛰고, 거리를 걷고, 광장에서 사람들을 만나고, 컴퓨터와 게임도 좋아했어요.</p><p>그 평범한 하루의 끝에는 성당이 있었어요.</p><p class="big-line">성인은 특별한 척하는 사람이 아니라, 평범한 삶에서 하느님을 선택한 사람이에요.</p>`
     });
     this.goto("copyFactory");
   }
@@ -469,7 +552,7 @@ export class OrientationScene extends Phaser.Scene {
 
   async notificationRunStage() {
     this.checkpoint("notificationRun");
-    const width = 3500;
+    const width = 3400;
     this.physics.world.setBounds(0, 0, width, H);
     this.cameras.main.setBounds(0, 0, width, H);
     this.cameras.main.setBackgroundColor(0x19213b);
@@ -479,27 +562,59 @@ export class OrientationScene extends Phaser.Scene {
       this.addLabel(x + 180, this.worldY(190 + (x % 800) / 8), ["알림", "새 소식", "메시지", "영상"][Math.floor(x / 420) % 4], { size: "22px", color: "#8d99b7" });
     }
     this.addGround(width, FLOOR_Y, 0x293653);
-    [[960, 650, 260], [1620, 590, 280], [2300, 670, 260]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x54637f));
     this.makePlayer(150, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
     this.cameras.main.startFollow(this.player, true, .16, .16, -100, 0);
-    this.noticeBlocks = this.physics.add.staticGroup();
-    const symbols = ["🔔", "♥", "💬", "▶", "📱"];
-    [650, 1120, 1430, 1880, 2200, 2640, 2920].forEach((x, index) => {
-      const y = this.worldY(index % 3 === 1 ? 520 : 720);
-      const block = this.addLabel(x, y, symbols[index % symbols.length], { size: "56px", strokeWidth: 0, depth: 10 });
-      this.physics.add.existing(block, true);
-      block.body.setSize(70, 70);
-      this.noticeBlocks.add(block);
+    this.noticeCounts = { bell: 0, chat: 0, video: 0, heart: 0 };
+    this.notificationFreedom = 0;
+    const notices = [
+      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"],
+      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"],
+      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"]
+    ];
+    notices.forEach(([type, icon], index) => {
+      const x = 520 + index * 235;
+      const y = FLOOR_Y - 145 - (index % 2) * 22;
+      const halo = this.add.circle(x, y, 58, [0xffd166, 0x6acbff, 0xff7e8d, 0xff9fc7][index % 4], .18).setDepth(9);
+      const notice = this.addLabel(x, y, icon, { size: "54px", strokeWidth: 0, depth: 10 });
+      notice.noticeType = type; notice.halo = halo;
+      this.physics.add.existing(notice, true);
+      notice.body.setSize(78, 78);
+      this.physics.add.overlap(this.player, notice, () => this.collectNotification(notice));
+      this.tweens.add({ targets: [notice, halo], y: y - 18, yoyo: true, repeat: -1, duration: 650 + index * 35 });
     });
-    this.physics.add.overlap(this.player, this.noticeBlocks, (_, block) => {
-      if (!block.active) return;
-      block.destroy();
-      this.player.setVelocityX(-220).setTint(0xffa0aa);
-      setTimeout(() => this.player?.clearTint(), 400);
-      this.ui.toast("알림에 부딪혔어요. 그래도 다시 선택할 수 있어요.", 1300);
-    });
-    this.setPlay("notificationRun", "알림 달리기", "밀려오는 알림을 지나 오른쪽 끝까지 가보세요.", "생각하기");
+    this.addLabel(W / 2, 230, "같은 알림 3개를 모으면 톡! 사라져요", { size: "28px", color: "#ffe7a3", wrap: 760, depth: 40 }).setScrollFactor(0);
+    this.setPlay("notificationRun", "알림 자유 찾기", "같은 알림을 3개씩 모아 자유의 빛 4개를 만들어요.", "생각하기");
+  }
+
+  collectNotification(notice) {
+    if (!notice?.active || this.busy) return;
+    const type = notice.noticeType;
+    notice.halo?.destroy();
+    const x = notice.x; const y = notice.y;
+    notice.destroy();
+    this.noticeCounts[type] += 1;
+    const icons = { bell: "🔔", chat: "💬", video: "▶️", heart: "❤️" };
+    if (this.noticeCounts[type] >= 3) {
+      this.noticeCounts[type] = 0;
+      this.notificationFreedom += 1;
+      for (let i = 0; i < 12; i += 1) {
+        const spark = this.add.circle(x, y, 10 + (i % 3) * 3, i % 2 ? 0xffd166 : 0x7de5ff, .9).setDepth(25);
+        const angle = (Math.PI * 2 * i) / 12;
+        this.tweens.add({ targets: spark, x: x + Math.cos(angle) * 150, y: y + Math.sin(angle) * 150, alpha: 0, scale: .2, duration: 620, onComplete: () => spark.destroy() });
+      }
+      this.cameras.main.flash(180, 255, 225, 130, false);
+      this.ui.toast(`${icons[type]} 3개가 톡! 알림으로부터 한 걸음 자유로워졌어요.`, 1800);
+    } else {
+      this.ui.toast(`${icons[type]} ${this.noticeCounts[type]}/3 · 같은 알림을 더 모아보세요.`, 900);
+    }
+    this.ui.setHud("알림 자유 찾기", `자유의 빛 ${this.notificationFreedom}/4 · 같은 알림 3개를 모아요.`);
+    if (this.notificationFreedom >= 4) {
+      this.busy = true;
+      this.player?.setVelocity(0, 0);
+      this.physics.pause();
+      this.time.delayedCall(900, () => { this.busy = false; this.finishNotificationRun(); });
+    }
   }
 
   async finishNotificationRun() {
@@ -509,8 +624,8 @@ export class OrientationScene extends Phaser.Scene {
     this.physics.pause();
     await this.ui.storyCard({
       kicker: "잠깐 멈춤",
-      title: "스마트폰이 나쁜 걸까?",
-      html: `<p><span class="speaker">카를로</span> “스마트폰은 도구야. 중요한 것은 누가 주인인가 하는 거야.”</p><p class="big-line">누가 도구를 사용하고 있을까?</p>`
+      title: "알림이 사라지니 마음에 자리가 생겼어요",
+      html: `<p>알림을 없애는 것이 목표가 아니라, 내가 멈추고 선택할 수 있다는 것을 연습했어요.</p><p><span class="speaker">카를로</span> “스마트폰은 도구야. 중요한 것은 누가 주인인가 하는 거야.”</p><p class="big-line">누가 도구를 사용하고 있을까?</p>`
     });
     const answer = await this.ui.choiceCard({
       kicker: "생각해 보기",
@@ -655,35 +770,90 @@ export class OrientationScene extends Phaser.Scene {
 
   async lookUpStage() {
     this.checkpoint("lookUp");
-    const worldH = 4300;
+    const worldH = 4500;
     this.physics.world.setBounds(0, 0, W, worldH);
     this.cameras.main.setBounds(0, 0, W, worldH);
-    this.cameras.main.setBackgroundColor(0x0c132b);
-    this.add.rectangle(W / 2, worldH / 2, W, worldH, 0x0c132b);
-    this.addStars(W, worldH, 190);
+    this.cameras.main.setBackgroundColor(0x11172b);
+    const skyBands = [
+      [3750, 1500, 0x172039], [2700, 900, 0x294569], [1900, 700, 0x4c79a0],
+      [1150, 800, 0x83b6d5], [450, 600, 0xc9e5ef], [100, 300, 0xffedc2]
+    ];
+    skyBands.forEach(([y, height, color]) => this.add.rectangle(W / 2, y, W, height, color).setDepth(0));
+    this.addStars(W, worldH, 170);
+    for (let x = 70; x < W; x += 145) {
+      const height = 240 + (x % 4) * 55;
+      this.add.rectangle(x, 4360 - height / 2, 105, height, 0x202536).setDepth(2);
+    }
     const worries = ["비교", "걱정", "성적", "외모", "관계"];
-    worries.forEach((word, i) => this.addLabel(90 + i * 180, 4175, word, { size: "31px", color: "#77809d" }));
+    worries.forEach((word, i) => this.addLabel(90 + i * 180, 4280, word, { size: "30px", color: "#77809d" }));
+    const cloudData = [[130, 2450, 260], [700, 2200, 310], [240, 1500, 330], [680, 1060, 350], [210, 640, 390], [650, 380, 320]];
+    cloudData.forEach(([x, y, width], i) => {
+      const cloud = this.add.ellipse(x, y, width, 95, 0xffffff, .35 + i * .08).setDepth(1);
+      this.tweens.add({ targets: cloud, x: x + (i % 2 ? -110 : 110), yoyo: true, repeat: -1, duration: 4200 + i * 520, ease: "Sine.easeInOut" });
+    });
+    for (let i = 0; i < 7; i += 1) {
+      const ray = this.add.rectangle(110 + i * 125, 520, 24, 950, 0xfff2b4, .06).setRotation(-.12 + i * .035).setDepth(1);
+      this.tweens.add({ targets: ray, alpha: .15, yoyo: true, repeat: -1, duration: 1300 + i * 110 });
+    }
     this.platforms = this.physics.add.staticGroup();
     const platforms = [
-      [W / 2, 4200, W], [230, 3980, 410], [670, 3760, 410], [230, 3540, 410],
-      [670, 3320, 410], [230, 3100, 410], [670, 2880, 410], [230, 2660, 410],
-      [670, 2440, 410], [230, 2220, 410], [670, 2000, 410], [230, 1780, 410],
-      [670, 1560, 410], [230, 1340, 410], [670, 1120, 410], [230, 900, 410],
-      [670, 680, 410], [W / 2, 460, 680]
+      [W / 2, 4380, W], [230, 4160, 400], [670, 3940, 400], [230, 3720, 400],
+      [670, 3500, 400], [230, 3280, 400], [670, 3060, 400], [230, 2840, 400],
+      [670, 2620, 400], [230, 2180, 400], [670, 1960, 400], [230, 1740, 400],
+      [670, 1520, 400], [230, 1080, 400], [670, 860, 400], [230, 640, 400],
+      [W / 2, 390, 700]
     ];
-    platforms.forEach((p, i) => this.addPlatform(p[0], p[1], p[2], i === 0 ? 0x313a56 : 0x526583));
-    this.makePlayer(230, 4070);
+    platforms.forEach((p, i) => this.addPlatform(p[0], p[1], p[2], i === 0 ? 0x313a56 : (p[1] < 1800 ? 0xd4dcbf : 0x607b92)));
+    this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
+    [[450, 2400, 92], [450, 1300, -88]].forEach(([x, y, velocity]) => {
+      const moving = this.physics.add.image(x, y, "platform").setTint(y < 1800 ? 0xf1e5b6 : 0x8eacc0).setScale(2.15, 1).setImmovable(true).setVelocityX(velocity).setCollideWorldBounds(true).setBounce(1);
+      moving.body.setAllowGravity(false);
+      this.movingPlatforms.add(moving);
+    });
+    this.makePlayer(230, 4250);
     this.player.setMaxVelocity(600, 1200);
     this.physics.add.collider(this.player, this.platforms);
+    this.physics.add.collider(this.player, this.movingPlatforms);
     this.cameras.main.startFollow(this.player, true, .12, .15, 0, 80);
-    this.addLabel(W / 2, 3900, "계속 아래만 보고 있네.", { size: "30px", color: "#aeb7cf", wrap: 650 });
-    this.addLabel(W / 2, 3650, "점프를 두 번 눌러 더 높이!", { size: "38px", color: "#ffd166", wrap: 720 });
-    const star = this.add.star(W / 2, 320, 5, 28, 68, 0xffd166).setDepth(10);
+    this.addLabel(W / 2, 4120, "복사본 도시의 걱정을 딛고\n시선을 들어 보세요.", { size: "29px", color: "#d8dfef", wrap: 700 });
+    this.addLabel(W / 2, 3650, "2단 점프와 움직이는 구름길을 이용해요!", { size: "34px", color: "#ffd166", wrap: 720 });
+    this.lookUpLight = 0;
+    const positiveWords = [
+      [670, 3860, "희망", "다시 시작할 수 있어요"], [230, 3200, "용기", "한 걸음 내딛어요"],
+      [670, 2540, "감사", "작은 선물을 발견해요"], [230, 1660, "사랑", "먼저 손을 내밀어요"],
+      [670, 780, "평화", "예수님께 맡겨요"]
+    ];
+    positiveWords.forEach(([x, y, word, scene]) => {
+      const glow = this.add.circle(x, y, 64, 0xffe79a, .28).setDepth(12);
+      const token = this.addLabel(x, y, word, { size: "31px", color: "#fff4c7", depth: 14 });
+      token.word = word; token.scene = scene; token.glow = glow;
+      this.physics.add.existing(token, true); token.body.setSize(130, 80);
+      this.physics.add.overlap(this.player, token, () => this.collectLookUpLight(token));
+      this.tweens.add({ targets: glow, scale: 1.3, alpha: .08, yoyo: true, repeat: -1, duration: 850 });
+    });
+    const star = this.add.star(W / 2, 270, 5, 32, 78, 0xffd166).setDepth(10);
     this.physics.add.existing(star, true);
     this.tweens.add({ targets: star, scale: 1.18, alpha: .68, yoyo: true, repeat: -1, duration: 850 });
-    this.physics.add.overlap(this.player, star, () => this.finishLookUp());
-    this.resetPlayer = () => { this.player?.setPosition(230, 4070).setVelocity(0, 0); this.jumpCount = 0; };
-    this.setPlay("lookUp", "위를 바라봐", "2단 점프로 별빛이 있는 곳까지 올라가세요.");
+    this.physics.add.overlap(this.player, star, () => {
+      if (this.lookUpLight >= 5) this.finishLookUp();
+      else this.ui.toast(`빛을 ${5 - this.lookUpLight}개 더 만나고 올라가요.`, 1200);
+    });
+    this.resetPlayer = () => { this.player?.setPosition(230, 4250).setVelocity(0, 0); this.jumpCount = 0; };
+    this.setPlay("lookUp", "위를 바라봐", "위로 오르며 희망의 빛 5개를 만나보세요. 0/5");
+  }
+
+  collectLookUpLight(token) {
+    if (!token?.active || this.busy) return;
+    const { word, scene, x, y } = token;
+    token.glow?.destroy(); token.destroy();
+    this.lookUpLight += 1;
+    for (let i = 0; i < 8; i += 1) {
+      const spark = this.add.star(x, y, 5, 5, 14, i % 2 ? 0xffffff : 0xffd166).setDepth(25);
+      const angle = (Math.PI * 2 * i) / 8;
+      this.tweens.add({ targets: spark, x: x + Math.cos(angle) * 120, y: y + Math.sin(angle) * 120, alpha: 0, duration: 650, onComplete: () => spark.destroy() });
+    }
+    this.ui.toast(`${word} — ${scene}`, 1700);
+    this.ui.setHud("위를 바라봐", `희망의 빛 ${this.lookUpLight}/5 · 올라갈수록 하늘이 밝아져요.`);
   }
 
   async finishLookUp() {
@@ -691,9 +861,9 @@ export class OrientationScene extends Phaser.Scene {
     this.busy = true;
     this.physics.pause();
     await this.ui.storyCard({
-      kicker: "별빛 아래에서",
-      title: "모든 것을 혼자 해결하지 않아도 돼",
-      html: `<p><span class="speaker">카를로</span> “걱정이 없어져야 위를 보는 건 아니야.”</p><p>걱정을 안고도 예수님께 이야기할 수 있어요. 맡겨 드릴 수 있어요.</p><p class="big-line">‘내’가 아니라 하느님을!</p>`
+      kicker: "빛이 가득한 곳에서",
+      title: "도시는 작아지고 하늘은 밝아졌어요",
+      html: `<p>희망, 용기, 감사, 사랑, 평화의 빛을 만나며 여기까지 올라왔어요.</p><p><span class="speaker">카를로</span> “걱정이 없어져야 위를 보는 건 아니야. 걱정을 안고도 예수님께 이야기할 수 있어.”</p><p>하느님 나라는 멀리 도망가는 곳이 아니라, 예수님과 함께 사랑을 선택할 때 이미 시작돼요.</p><p class="big-line">‘내’가 아니라 하느님을 바라봐요!</p>`
     });
     this.goto("sevenDoors");
   }
@@ -725,11 +895,13 @@ export class OrientationScene extends Phaser.Scene {
     this.player.body.setSize(52, 94).setOffset(14, 10);
     this.physics.add.collider(this.player, this.platforms);
     this.cameras.main.startFollow(this.player, true, .14, .14, -80, 0);
+    const dayList = DOORS.map(([day, title, question, description]) => `<div class="day-item"><strong>${day} · ${title}</strong><small>${description}<br>묵상 질문: ${question}</small></div>`).join("");
     await this.ui.storyCard({
       kicker: "앞으로 이어질 7일",
-      title: "7개의 문이 기다리고 있어요",
-      html: `<p><strong>첫째 날</strong> 조종실 · <strong>둘째 날</strong> 천국으로 가는 길 · <strong>셋째 날</strong> 원본</p><p><strong>넷째 날</strong> 위를 바라봐 · <strong>다섯째 날</strong> 재능 작업실 · <strong>여섯째 날</strong> 사랑의 다리 · <strong>일곱째 날</strong> 나의 인생 계획</p><p>오늘은 첫째 날의 문만 열려 있어요.</p>`,
-      actions: [{ label: "문 앞에 서기", value: "next", primary: true }]
+      title: "매일 새로운 묵상의 문이 열려요",
+      html: `<p>앞으로 펼쳐질 일곱 가지 묵상 주제예요.</p><div class="day-list">${dayList}</div><p class="big-line">매일 새로운 게임 링크를 드릴게요. 카를로와 함께 재미있게 묵상해요!</p><p>오늘은 첫째 날의 문만 열려 있어요.</p>`,
+      actions: [{ label: "일곱 날을 기대하며 문 앞에 서기", value: "next", primary: true }],
+      panelClass: "day-panel"
     });
     this.setPlay("sevenDoors", "7개의 문", "앞으로 7일 동안 하나씩 열릴 거예요. 첫째 날의 문을 살펴보세요.", "문 열기");
   }
@@ -740,7 +912,7 @@ export class OrientationScene extends Phaser.Scene {
     await this.ui.storyCard({
       kicker: "앞으로 걸어갈 길",
       title: "7개의 문이 기다리고 있어요",
-      html: `<p>매일 짧은 게임, 카를로의 이야기, 질문 하나, 현실 미션, 기도로 이어져요.</p><p><strong>첫째 날의 질문:</strong> 내 삶의 중심은 무엇일까?</p><p>오늘은 그 길을 시작하기 전, 첫 마음을 남겨볼 거예요.</p>`
+      html: `<p>매일 보내드리는 링크를 누르면 짧은 게임, 카를로의 이야기, 질문 하나, 현실 미션, 기도가 이어져요.</p><p><strong>첫째 날 · 조종실</strong><br>나를 움직이는 것들을 살펴보고 삶의 주인을 찾아요.</p><p><strong>첫째 날의 질문:</strong> 내 삶의 중심은 무엇일까?</p><p>오늘은 그 길을 시작하기 전, 첫 마음을 남겨볼 거예요.</p>`
     });
     this.goto("firstQuestion");
   }
@@ -774,16 +946,17 @@ export class OrientationScene extends Phaser.Scene {
     this.add.rectangle(W / 2, H * .6, 120, 160, 0x6d5238).setStrokeStyle(8, 0xd8b46c).setDepth(3);
     this.add.circle(W / 2, H * .6 - 90, 26, 0xffedaa, .8).setDepth(4);
     await this.ui.storyCard({
-      kicker: "시작 기도",
-      title: "예수님께 그냥 이야기해도 괜찮아요",
-      html: `<p>잠깐 숨을 고르고, 마음으로 함께 기도해 보세요.</p>`,
-      actions: [{ label: "기도 시작", value: "next", primary: true }]
+      kicker: "오리엔테이션 마침기도",
+      title: "친구들과 천천히 따라 읽어 보세요",
+      html: `<p>잠깐 숨을 고르고 기도할 준비를 해요.</p><p>친구들과 함께라면 한 사람이 한 문장씩 천천히 읽고, 다른 친구들은 마음으로 따라 읽어도 좋아요.</p><p>기도문이 길어도 서두르지 마세요. 화면을 아래로 천천히 내리며 끝까지 읽어 보세요.</p>`,
+      actions: [{ label: "마침기도 시작", value: "next", primary: true }]
     });
     await this.ui.storyCard({
-      kicker: "천천히 읽어 보세요",
+      kicker: "천천히 아래로 내려 읽어 보세요",
       title: "예수님, 저와 함께 걸어 주세요",
-      html: `<p>예수님,<br>카를로와 함께 걷는 이 길에서<br>하느님께서 만드신 저를 발견하게 해 주세요.</p><p>다른 사람과 비교하기보다<br>제 안의 좋은 것을 알아보고,<br>친구의 좋은 점도 볼 수 있게 해 주세요.</p><p>걱정과 기쁨을 숨기지 않고<br>예수님께 이야기하게 해 주세요.</p><p class="big-line">아멘.</p>`,
-      actions: [{ label: "아멘", value: "next", primary: true }]
+      html: `<div class="prayer-scroll"><p>사랑하는 예수님,<br>오늘 카를로와 함께 걸으며<br>하느님께서 저를 세상에 하나뿐인 원본으로 만드셨다는 것을 배웠습니다.</p><p>다른 사람의 모습과 가진 것을 부러워하고,<br>잘 보이려고 애쓰며,<br>저 자신을 작게 생각했던 마음을 예수님께 맡깁니다.</p><p>남과 비교하기보다<br>하느님께서 제 안에 심어 주신 좋은 점과 재능을 발견하게 해 주세요.<br>아직 찾지 못했더라도 조급해하지 않고<br>예수님의 눈으로 저를 바라보게 해 주세요.</p><p>제가 좋아하는 게임과 스마트폰과 인터넷을<br>나쁘다고 여기거나 두려워하지 않게 해 주세요.<br>도구가 저를 끌고 가지 않도록 멈출 줄 알고,<br>좋은 일을 위해 자유롭게 사용할 수 있게 해 주세요.</p><p>친구의 좋은 점을 먼저 발견하고<br>따뜻한 말로 전할 용기를 주세요.<br>혼자 있거나 속상해하는 친구에게 다가가고,<br>제가 받은 사랑을 작은 행동으로 나누게 해 주세요.</p><p>걱정 때문에 아래만 바라볼 때<br>고개를 들어 예수님을 찾게 해 주세요.<br>모든 것을 혼자 해결하려 하지 않고<br>기쁨과 슬픔과 두려움을 예수님께 솔직히 이야기하게 해 주세요.</p><p>성체 안에서 저를 기다리시는 예수님,<br>제가 성당에서 예수님을 더 자주 만나고,<br>말없이 함께 머무는 기쁨을 알게 해 주세요.<br>말씀을 읽고 기도하며 매일 예수님과 가까워지게 해 주세요.</p><p>성 카를로 아쿠티스와 함께 걷는 앞으로의 일곱 날 동안<br>카를로의 복사본이 아니라<br>하느님께서 만드신 저 자신으로 살아가게 해 주세요.</p><p>카를로와 함께 걷고,<br>예수님을 따라가며,<br>제 삶의 모든 순간이 사랑을 향하게 해 주세요.</p><p>우리 주 그리스도를 통하여 비나이다.</p><p class="amen">아멘.</p></div>`,
+      actions: [{ label: "기도를 다 읽었어요 · 아멘", value: "next", primary: true }],
+      panelClass: "prayer-panel"
     });
     this.goto("ending");
   }
@@ -810,25 +983,31 @@ export class OrientationScene extends Phaser.Scene {
       title: "이제 길이 시작돼요",
       html: `<p><span class="speaker">카를로</span> “나를 따라 하는 여행이 아니야. 나와 함께 걸으며 예수님을 따라가는 여행이야.”</p><p>오늘 남긴 첫 마음:</p><p class="big-line">“${this.escapeHtml(first)}”</p>`
     });
-    await this.ui.storyCard({
+    const next = await this.ui.storyCard({
       kicker: "ORIGINAL MODE",
       title: "하느님께서는 당신도 단 한 명 만드셨어요",
       html: `<p class="big-line">카를로처럼 보이려고 하지 마세요.</p><p class="big-line">카를로와 함께 걸어보세요.</p><p class="big-line">그리고 예수님을 따라가세요.</p>`,
       actions: [
-        { label: "처음 화면으로", value: "title", primary: true },
-        { label: "나의 기록 보기", value: "record", primary: false }
+        { label: "카를로의 마지막 말", value: "quote", primary: true },
+        { label: "나의 기록 먼저 보기", value: "record", primary: false }
       ]
-    }).then(async (action) => {
-      if (action === "record") {
-        const save = this.getSave();
-        await this.ui.storyCard({
-          kicker: "나의 원본 노트",
-          title: "오늘 발견한 것",
-          html: `<p><strong>내가 좋아하는 것</strong><br>${(save.interests || []).join(" · ") || "천천히 찾아가는 중"}</p><p><strong>나의 좋은 점</strong><br>${this.escapeHtml(save.note || "아직 모르겠어요")}</p><p><strong>처음 남긴 마음</strong><br>${this.escapeHtml(save.firstAnswer || "아직 모르겠어요")}</p>`
-        });
-      }
-      this.goto("title");
     });
+    if (next === "record") {
+      const save = this.getSave();
+      await this.ui.storyCard({
+        kicker: "나의 원본 노트",
+        title: "오늘 발견한 것",
+        html: `<p><strong>내가 좋아하는 것</strong><br>${(save.interests || []).join(" · ") || "천천히 찾아가는 중"}</p><p><strong>나의 좋은 점</strong><br>${this.escapeHtml(save.note || "아직 모르겠어요")}</p><p><strong>처음 남긴 마음</strong><br>${this.escapeHtml(save.firstAnswer || "아직 모르겠어요")}</p>`,
+        actions: [{ label: "카를로의 마지막 말", value: "quote", primary: true }]
+      });
+    }
+    await this.ui.storyCard({
+      kicker: "성 카를로 아쿠티스의 말",
+      title: "“모든 사람은 원본으로 태어나지만 많은 사람은 복사본으로 죽습니다.”",
+      html: `<p>다른 사람의 복사본이 아니라, 하느님께서 만드신 나로 살아가요.</p><p class="big-line">카를로와 함께 걷고, 예수님을 따라가요.</p>`,
+      actions: [{ label: "오리엔테이션 마치기", value: "title", primary: true }]
+    });
+    this.goto("title");
   }
 
   escapeHtml(value) {
@@ -913,7 +1092,6 @@ export class OrientationScene extends Phaser.Scene {
       });
       if (this.player.x > 4230 && this.factoryGateDone.size >= 3) this.finishFactory();
     }
-    if (this.mode === "notificationRun" && this.player.x > 3180) this.finishNotificationRun();
   }
 }
 
