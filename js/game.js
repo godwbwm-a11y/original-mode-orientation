@@ -1,8 +1,11 @@
 import { STAGES, DISCOVERIES, INTEREST_OPTIONS, GOOD_NPCS, DOORS } from "../data/orientation.js";
 import { writeSave } from "./storage.js";
 
-const W = 1600;
-const H = 900;
+const W = 900;
+const H = 1600;
+const FLOOR_Y = H - 230;
+const LEGACY_FLOOR_Y = 790;
+const Y_SHIFT = FLOOR_Y - LEGACY_FLOOR_Y;
 const C = {
   ink: 0xf7f3df, gold: 0xffd166, blue: 0x4bb3fd, green: 0x60d394,
   night: 0x090b17, city: 0x202536, gray: 0x777b87, white: 0xffffff,
@@ -25,6 +28,8 @@ export class OrientationScene extends Phaser.Scene {
     this.platforms = null;
     this.cursors = null;
     this.lastGroundedAt = 0;
+    this.jumpCount = 0;
+    this.doubleJumpHintShown = false;
   }
 
   create() {
@@ -81,6 +86,7 @@ export class OrientationScene extends Phaser.Scene {
     this.mode = "loading";
     this.near = null;
     this.player = null;
+    this.jumpCount = 0;
     this.physics.world.colliders.destroy();
     this.physics.world.setBounds(0, 0, W, H);
     this.cameras.main.stopFollow();
@@ -138,7 +144,11 @@ export class OrientationScene extends Phaser.Scene {
     return this.player;
   }
 
-  addGround(width, y = 790, color = 0x31384c) {
+  worldY(landscapeY) {
+    return landscapeY + Y_SHIFT;
+  }
+
+  addGround(width, y = FLOOR_Y, color = 0x31384c) {
     this.platforms = this.physics.add.staticGroup();
     const ground = this.add.rectangle(width / 2, y + 55, width, 110, color).setDepth(3);
     this.physics.add.existing(ground, true);
@@ -167,16 +177,16 @@ export class OrientationScene extends Phaser.Scene {
   addCityBackdrop(width, colorful = false) {
     const sky = colorful ? 0x2c456d : 0x202536;
     this.cameras.main.setBackgroundColor(sky);
-    this.add.rectangle(width / 2, 390, width, 780, sky).setDepth(0);
+    this.add.rectangle(width / 2, H / 2, width, H, sky).setDepth(0);
     for (let x = 0; x < width; x += 260) {
       const h = 240 + ((x / 260) % 3) * 70;
       const color = colorful ? [0x42627c, 0x5a597b, 0x3f6a65][(x / 260) % 3] : [0x343846, 0x3d414e, 0x2d3240][(x / 260) % 3];
-      this.add.rectangle(x + 130, 790 - h / 2, 220, h, color).setDepth(1);
-      for (let wy = 580; wy < 730; wy += 58) for (let wx = x + 65; wx < x + 210; wx += 62) {
+      this.add.rectangle(x + 130, FLOOR_Y - h / 2, 220, h, color).setDepth(1);
+      for (let wy = FLOOR_Y - 210; wy < FLOOR_Y - 55; wy += 58) for (let wx = x + 65; wx < x + 210; wx += 62) {
         this.add.rectangle(wx, wy, 20, 28, colorful ? 0xffd166 : 0x686b74).setAlpha(colorful ? .55 : .28).setDepth(2);
       }
     }
-    this.add.circle(width - 260, 160, 58, colorful ? 0xffe7a3 : 0xaeb1b9, colorful ? .8 : .25).setDepth(1);
+    this.add.circle(Math.max(120, width - 260), 260, 58, colorful ? 0xffe7a3 : 0xaeb1b9, colorful ? .8 : .25).setDepth(1);
   }
 
   addStars(width = W, height = H, count = 70) {
@@ -204,13 +214,13 @@ export class OrientationScene extends Phaser.Scene {
     this.addStars(W, H, 90);
     for (let x = 0; x < W; x += 90) {
       const alpha = .08 + ((x / 90) % 4) * .025;
-      this.add.rectangle(x + 45, 790, 74, 160 + ((x / 90) % 3) * 70, 0x556074, alpha).setOrigin(.5, 1);
+      this.add.rectangle(x + 45, H - 150, 74, 160 + ((x / 90) % 3) * 70, 0x556074, alpha).setOrigin(.5, 1);
     }
-    this.addLabel(W / 2, 238, "복사 모드 감지", { size: "28px", color: "#9aa0b2" });
+    this.addLabel(W / 2, 400, "복사 모드 감지", { size: "28px", color: "#9aa0b2" });
     await wait(700);
     this.children.list.find((child) => child.text === "복사 모드 감지")?.setVisible(false);
-    this.addLabel(W / 2, 338, "ORIGINAL MODE", { size: "82px", color: "#ffd166", strokeWidth: 10 });
-    this.addLabel(W / 2, 424, "하느님께서 만드신 나를 찾아가는 7일", { size: "28px", color: "#f7f3df" });
+    this.addLabel(W / 2, 550, "ORIGINAL MODE", { size: "68px", color: "#ffd166", strokeWidth: 10 });
+    this.addLabel(W / 2, 645, "하느님께서 만드신 나를 찾아가는 7일", { size: "25px", color: "#f7f3df", wrap: 760 });
     const save = this.getSave();
     const actions = [{ label: save.completed ? "엔딩 다시 보기" : "게임 시작", value: save.completed ? "ending" : "new", primary: true }];
     if (save.checkpoint !== "title" && !save.completed) actions.unshift({ label: "이어서 하기", value: "continue", primary: true });
@@ -252,22 +262,22 @@ export class OrientationScene extends Phaser.Scene {
     this.interactives = [];
     lines.forEach((line, index) => {
       const x = 650 + index * 470;
-      const npc = this.physics.add.sprite(x, 720, "city-npc").setDepth(10).setImmovable(true);
+      const npc = this.physics.add.sprite(x, FLOOR_Y - 70, "city-npc").setDepth(10).setImmovable(true);
       npc.body.setAllowGravity(false);
-      this.addLabel(x, 610, String([327, 1204, 29, "7만", 804, 96][index]), { size: "21px", color: "#b7bac4" });
+      this.addLabel(x, FLOOR_Y - 180, String([327, 1204, 29, "7만", 804, 96][index]), { size: "21px", color: "#b7bac4" });
       this.interactives.push({ type: "npc", x, line, npc });
     });
-    const ball = this.add.circle(3450, 740, 25, 0xf4f1df).setStrokeStyle(8, 0x293048).setDepth(9);
-    this.add.line(3450, 740, -20, 0, 20, 0, 0x293048, 1).setDepth(10);
-    const carlo = this.physics.add.sprite(3800, 714, "carlo").setDepth(10).setImmovable(true);
+    this.add.circle(3450, FLOOR_Y - 50, 25, 0xf4f1df).setStrokeStyle(8, 0x293048).setDepth(9);
+    this.add.line(3450, FLOOR_Y - 50, -20, 0, 20, 0, 0x293048, 1).setDepth(10);
+    const carlo = this.physics.add.sprite(3800, FLOOR_Y - 76, "carlo").setDepth(10).setImmovable(true);
     carlo.body.setAllowGravity(false);
-    this.addLabel(3800, 594, "카를로", { size: "22px", color: "#ffd166" });
+    this.addLabel(3800, FLOOR_Y - 196, "카를로", { size: "22px", color: "#ffd166" });
     this.interactives.push({ type: "carlo", x: 3800, npc: carlo });
-    this.makePlayer(170, 690);
+    this.makePlayer(170, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
-    this.cameras.main.startFollow(this.player, true, .12, .12, -280, 60);
+    this.cameras.main.startFollow(this.player, true, .12, .12, -100, 0);
     this.setPlay("copyCity", "복사본 도시", "오른쪽으로 걸으며 사람들의 이야기를 들어보세요.", "대화");
-    this.ui.toast("◀ ▶ 이동 · 점프 · 대화 버튼을 함께 사용할 수 있어요.", 3500);
+    this.ui.toast("공중에서 점프를 한 번 더 누르면 더 높이 뛰어요!", 4200);
   }
 
   async handleCityInteract(target) {
@@ -288,8 +298,8 @@ export class OrientationScene extends Phaser.Scene {
     this.addCityBackdrop(W, true);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
     this.makePlayerTexture();
-    this.add.image(575, 620, "player-custom").setScale(2.1).setDepth(10);
-    this.add.image(1025, 620, "carlo").setScale(2.1).setDepth(10);
+    this.add.image(W * .32, H * .64, "player-custom").setScale(2.1).setDepth(10);
+    this.add.image(W * .68, H * .64, "carlo").setScale(2.1).setDepth(10);
     await this.ui.storyCard({
       kicker: "청바지를 입은 성인",
       title: "카를로를 만났어요",
@@ -310,18 +320,19 @@ export class OrientationScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, width, H);
     this.cameras.main.setBounds(0, 0, width, H);
     this.addCityBackdrop(width, true);
-    this.addGround(width, 800, 0x3e5360);
-    [[1040, 620, 330], [2060, 590, 330], [3200, 650, 320]].forEach((p) => this.addPlatform(...p, 0x718078));
-    this.makePlayer(130, 700);
+    this.addGround(width, FLOOR_Y, 0x3e5360);
+    [[1040, 620, 330], [2060, 590, 330], [3200, 650, 320]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x718078));
+    this.makePlayer(130, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
-    this.cameras.main.startFollow(this.player, true, .14, .14, -250, 50);
+    this.cameras.main.startFollow(this.player, true, .14, .14, -100, 0);
     this.discoverySprites = [];
     const found = new Set(this.getSave().discoveries || []);
     for (const item of DISCOVERIES) {
       if (found.has(item.id)) continue;
-      const glow = this.add.circle(item.x, item.y, 52, 0xffd166, .22).setDepth(10);
+      const itemY = this.worldY(item.y);
+      const glow = this.add.circle(item.x, itemY, 52, 0xffd166, .22).setDepth(10);
       this.tweens.add({ targets: glow, alpha: .06, scale: 1.25, yoyo: true, repeat: -1, duration: 850 });
-      const symbol = this.addLabel(item.x, item.y, item.symbol, { size: "54px", strokeWidth: 0, depth: 12 });
+      const symbol = this.addLabel(item.x, itemY, item.symbol, { size: "54px", strokeWidth: 0, depth: 12 });
       this.physics.add.existing(symbol);
       symbol.body.setAllowGravity(false).setCircle(30);
       symbol.item = item; symbol.glow = glow;
@@ -366,29 +377,29 @@ export class OrientationScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, width, H);
     this.cameras.main.setBounds(0, 0, width, H);
     this.cameras.main.setBackgroundColor(0x161a28);
-    this.add.rectangle(width / 2, 400, width, 800, 0x161a28).setDepth(0);
+    this.add.rectangle(width / 2, H / 2, width, H, 0x161a28).setDepth(0);
     for (let x = 150; x < width; x += 330) {
-      this.add.rectangle(x, 420, 170, 330, 0x303646).setDepth(1);
-      this.add.circle(x, 390, 56, 0x6c7181, .3).setDepth(2);
-      this.add.rectangle(x, 570, 110, 80, 0x777c89, .28).setDepth(2);
+      this.add.rectangle(x, this.worldY(420), 170, 330, 0x303646).setDepth(1);
+      this.add.circle(x, this.worldY(390), 56, 0x6c7181, .3).setDepth(2);
+      this.add.rectangle(x, this.worldY(570), 110, 80, 0x777c89, .28).setDepth(2);
     }
-    this.addGround(width, 800, 0x2d3342);
-    [[760, 690, 260], [1210, 590, 260], [1710, 690, 250], [2380, 610, 280], [3000, 670, 280], [3560, 570, 280]].forEach((p) => this.addPlatform(...p, 0x6d7483));
+    this.addGround(width, FLOOR_Y, 0x2d3342);
+    [[760, 690, 260], [1210, 590, 260], [1710, 690, 250], [2380, 610, 280], [3000, 670, 280], [3560, 570, 280]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x6d7483));
     const hazards = [];
     [940, 1920, 2740, 3770].forEach((x) => {
-      const spike = this.add.triangle(x, 755, 0, 60, 42, 0, 84, 60, 0xff6070).setDepth(7);
+      const spike = this.add.triangle(x, this.worldY(755), 0, 60, 42, 0, 84, 60, 0xff6070).setDepth(7);
       this.physics.add.existing(spike, true);
       hazards.push(spike);
     });
-    for (let x = 400; x < width; x += 760) this.addLabel(x, 520, ["인기", "유행", "좋아요", "따라 하기", "비교"][Math.floor(x / 760) % 5], { size: "34px", color: "#9499aa" });
+    for (let x = 400; x < width; x += 760) this.addLabel(x, this.worldY(520), ["인기", "유행", "좋아요", "따라 하기", "비교"][Math.floor(x / 760) % 5], { size: "34px", color: "#9499aa" });
     this.factoryGates = [1150, 2450, 3500];
     this.factoryGateDone = new Set();
-    this.makePlayer(140, 700);
+    this.makePlayer(140, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
     hazards.forEach((hazard) => {
       this.physics.add.overlap(this.player, hazard, () => this.bumpPlayer());
     });
-    this.cameras.main.startFollow(this.player, true, .13, .13, -260, 40);
+    this.cameras.main.startFollow(this.player, true, .13, .13, -100, 0);
     this.setPlay("copyFactory", "복사본 공장", "장애물을 넘고, 내가 좋아하는 것을 골라 색을 되찾아 보세요.");
   }
 
@@ -435,9 +446,9 @@ export class OrientationScene extends Phaser.Scene {
     this.addStars(W, H, 50);
     this.add.rectangle(W / 2, H / 2 + 30, 720, 580, 0xf2e4c4).setStrokeStyle(18, 0x865d3a).setDepth(2);
     this.add.line(W / 2, H / 2 + 30, 0, -280, 0, 280, 0xc29a6b, 1).setDepth(3);
-    this.addLabel(W / 2, 205, "나의 원본 노트", { size: "48px", color: "#352314" });
+    this.addLabel(W / 2, H / 2 - 240, "나의 원본 노트", { size: "48px", color: "#352314" });
     const interests = this.getSave().interests || [];
-    this.addLabel(W / 2, 315, interests.length ? `내가 고른 것: ${interests.join(" · ")}` : "내가 좋아하는 것을 천천히 찾아가요.", { size: "26px", color: "#5a3c26", wrap: 620 });
+    this.addLabel(W / 2, H / 2 - 125, interests.length ? `내가 고른 것: ${interests.join(" · ")}` : "내가 좋아하는 것을 천천히 찾아가요.", { size: "26px", color: "#5a3c26", wrap: 620 });
     const note = await this.ui.inputCard({
       kicker: "나의 원본 노트",
       title: "나에게 있는 좋은 점은 무엇일까?",
@@ -464,18 +475,18 @@ export class OrientationScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x19213b);
     this.add.rectangle(width / 2, H / 2, width, H, 0x19213b);
     for (let x = 0; x < width; x += 420) {
-      this.add.circle(x + 180, 190 + (x % 800) / 8, 70, 0x324267, .35);
-      this.addLabel(x + 180, 190 + (x % 800) / 8, ["알림", "새 소식", "메시지", "영상"][Math.floor(x / 420) % 4], { size: "22px", color: "#8d99b7" });
+      this.add.circle(x + 180, this.worldY(190 + (x % 800) / 8), 70, 0x324267, .35);
+      this.addLabel(x + 180, this.worldY(190 + (x % 800) / 8), ["알림", "새 소식", "메시지", "영상"][Math.floor(x / 420) % 4], { size: "22px", color: "#8d99b7" });
     }
-    this.addGround(width, 800, 0x293653);
-    [[960, 650, 260], [1620, 590, 280], [2300, 670, 260]].forEach((p) => this.addPlatform(...p, 0x54637f));
-    this.makePlayer(150, 700);
+    this.addGround(width, FLOOR_Y, 0x293653);
+    [[960, 650, 260], [1620, 590, 280], [2300, 670, 260]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x54637f));
+    this.makePlayer(150, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
-    this.cameras.main.startFollow(this.player, true, .16, .16, -300, 40);
+    this.cameras.main.startFollow(this.player, true, .16, .16, -100, 0);
     this.noticeBlocks = this.physics.add.staticGroup();
     const symbols = ["🔔", "♥", "💬", "▶", "📱"];
     [650, 1120, 1430, 1880, 2200, 2640, 2920].forEach((x, index) => {
-      const y = index % 3 === 1 ? 520 : 720;
+      const y = this.worldY(index % 3 === 1 ? 520 : 720);
       const block = this.addLabel(x, y, symbols[index % symbols.length], { size: "56px", strokeWidth: 0, depth: 10 });
       this.physics.add.existing(block, true);
       block.body.setSize(70, 70);
@@ -526,13 +537,13 @@ export class OrientationScene extends Phaser.Scene {
     this.mode = "quietChurch";
     this.cameras.main.setBackgroundColor(C.church);
     this.add.rectangle(W / 2, H / 2, W, H, C.church);
-    for (let x = 120; x < W; x += 160) this.add.rectangle(x, 660, 100, 220, 0x2e2944).setDepth(2);
-    this.add.rectangle(W / 2, 400, 360, 500, 0x282442).setStrokeStyle(12, 0x5b4c68).setDepth(3);
-    this.add.rectangle(W / 2, 520, 140, 120, 0x765b3a).setStrokeStyle(8, 0xd9b86a).setDepth(5);
-    this.add.circle(W / 2, 475, 23, 0xfff1b0, .75).setDepth(6);
-    [660, 940].forEach((x) => {
-      this.add.rectangle(x, 570, 15, 95, 0xe8ddc0).setDepth(5);
-      const flame = this.add.ellipse(x, 500, 22, 38, 0xffd166, .8).setDepth(6);
+    for (let x = 90; x < W; x += 150) this.add.rectangle(x, H - 370, 92, 230, 0x2e2944).setDepth(2);
+    this.add.rectangle(W / 2, H / 2, 420, 700, 0x282442).setStrokeStyle(12, 0x5b4c68).setDepth(3);
+    this.add.rectangle(W / 2, H / 2 + 130, 140, 120, 0x765b3a).setStrokeStyle(8, 0xd9b86a).setDepth(5);
+    this.add.circle(W / 2, H / 2 + 85, 23, 0xfff1b0, .75).setDepth(6);
+    [W / 2 - 145, W / 2 + 145].forEach((x) => {
+      this.add.rectangle(x, H / 2 + 180, 15, 95, 0xe8ddc0).setDepth(5);
+      const flame = this.add.ellipse(x, H / 2 + 110, 22, 38, 0xffd166, .8).setDepth(6);
       this.tweens.add({ targets: flame, scaleY: .75, alpha: .5, yoyo: true, repeat: -1, duration: 500 + (x % 80) });
     });
     await this.ui.storyCard({
@@ -557,8 +568,8 @@ export class OrientationScene extends Phaser.Scene {
     return new Promise((resolve) => {
       let start = performance.now();
       let finished = false;
-      const label = this.addLabel(W / 2, 735, "10", { size: "54px", color: "#ffe7a3" });
-      const guide = this.addLabel(W / 2, 800, "아무것도 하지 않아도 괜찮아요.", { size: "23px", color: "#b9bed3" });
+      const label = this.addLabel(W / 2, H - 400, "10", { size: "54px", color: "#ffe7a3" });
+      const guide = this.addLabel(W / 2, H - 325, "아무것도 하지 않아도 괜찮아요.", { size: "23px", color: "#b9bed3", wrap: 720 });
       const reset = (event) => {
         if (finished || event.target?.closest?.("#menu-button")) return;
         start = performance.now();
@@ -590,19 +601,19 @@ export class OrientationScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, width, H);
     this.cameras.main.setBounds(0, 0, width, H);
     this.addCityBackdrop(width, true);
-    this.addGround(width, 800, 0x3f5b57);
+    this.addGround(width, FLOOR_Y, 0x3f5b57);
     this.goodTargets = [];
     for (const data of GOOD_NPCS) {
       const key = `good-${data.id}`;
       this.makePersonTexture(key, data.color);
-      const npc = this.physics.add.sprite(data.x, 716, key).setDepth(10).setImmovable(true);
+      const npc = this.physics.add.sprite(data.x, FLOOR_Y - 74, key).setDepth(10).setImmovable(true);
       npc.body.setAllowGravity(false);
-      this.addLabel(data.x, 600, data.name, { size: "23px", color: "#fff0b5" });
+      this.addLabel(data.x, FLOOR_Y - 190, data.name, { size: "23px", color: "#fff0b5" });
       this.goodTargets.push({ ...data, npc });
     }
-    this.makePlayer(170, 700);
+    this.makePlayer(170, FLOOR_Y - 100);
     this.physics.add.collider(this.player, this.platforms);
-    this.cameras.main.startFollow(this.player, true, .14, .14, -240, 50);
+    this.cameras.main.startFollow(this.player, true, .14, .14, -100, 0);
     const count = Object.keys(this.getSave().goodPoints || {}).length;
     this.setPlay("goodPoints", "좋은 점 찾기", `세 친구와 이야기해 보세요. ${count}/3`, "대화");
     if (count >= 3) setTimeout(() => this.finishGoodPoints(), 500);
@@ -644,34 +655,35 @@ export class OrientationScene extends Phaser.Scene {
 
   async lookUpStage() {
     this.checkpoint("lookUp");
-    const worldH = 2850;
+    const worldH = 4300;
     this.physics.world.setBounds(0, 0, W, worldH);
     this.cameras.main.setBounds(0, 0, W, worldH);
     this.cameras.main.setBackgroundColor(0x0c132b);
     this.add.rectangle(W / 2, worldH / 2, W, worldH, 0x0c132b);
     this.addStars(W, worldH, 190);
     const worries = ["비교", "걱정", "성적", "외모", "관계"];
-    worries.forEach((word, i) => this.addLabel(220 + i * 290, 2720, word, { size: "35px", color: "#77809d" }));
+    worries.forEach((word, i) => this.addLabel(90 + i * 180, 4175, word, { size: "31px", color: "#77809d" }));
     this.platforms = this.physics.add.staticGroup();
     const platforms = [
-      [800, 2740, 1500], [300, 2560, 470], [900, 2390, 470], [1300, 2220, 420],
-      [760, 2050, 440], [260, 1880, 430], [780, 1710, 430], [1280, 1540, 430],
-      [780, 1370, 430], [290, 1200, 430], [820, 1030, 430], [1310, 860, 430],
-      [850, 690, 470], [350, 520, 470], [820, 350, 700]
+      [W / 2, 4200, W], [230, 3980, 410], [670, 3760, 410], [230, 3540, 410],
+      [670, 3320, 410], [230, 3100, 410], [670, 2880, 410], [230, 2660, 410],
+      [670, 2440, 410], [230, 2220, 410], [670, 2000, 410], [230, 1780, 410],
+      [670, 1560, 410], [230, 1340, 410], [670, 1120, 410], [230, 900, 410],
+      [670, 680, 410], [W / 2, 460, 680]
     ];
     platforms.forEach((p, i) => this.addPlatform(p[0], p[1], p[2], i === 0 ? 0x313a56 : 0x526583));
-    this.makePlayer(280, 2630);
+    this.makePlayer(230, 4070);
     this.player.setMaxVelocity(600, 1200);
     this.physics.add.collider(this.player, this.platforms);
     this.cameras.main.startFollow(this.player, true, .12, .15, 0, 80);
-    this.addLabel(800, 2420, "계속 아래만 보고 있네.", { size: "30px", color: "#aeb7cf", wrap: 500 });
-    this.addLabel(800, 2140, "위를 바라봐!", { size: "45px", color: "#ffd166" });
-    const star = this.add.star(820, 245, 5, 28, 68, 0xffd166).setDepth(10);
+    this.addLabel(W / 2, 3900, "계속 아래만 보고 있네.", { size: "30px", color: "#aeb7cf", wrap: 650 });
+    this.addLabel(W / 2, 3650, "점프를 두 번 눌러 더 높이!", { size: "38px", color: "#ffd166", wrap: 720 });
+    const star = this.add.star(W / 2, 320, 5, 28, 68, 0xffd166).setDepth(10);
     this.physics.add.existing(star, true);
     this.tweens.add({ targets: star, scale: 1.18, alpha: .68, yoyo: true, repeat: -1, duration: 850 });
     this.physics.add.overlap(this.player, star, () => this.finishLookUp());
-    this.resetPlayer = () => { this.player?.setPosition(280, 2630).setVelocity(0, 0); };
-    this.setPlay("lookUp", "위를 바라봐", "플랫폼을 밟고 별빛이 있는 곳까지 올라가세요.");
+    this.resetPlayer = () => { this.player?.setPosition(230, 4070).setVelocity(0, 0); this.jumpCount = 0; };
+    this.setPlay("lookUp", "위를 바라봐", "2단 점프로 별빛이 있는 곳까지 올라가세요.");
   }
 
   async finishLookUp() {
@@ -688,28 +700,31 @@ export class OrientationScene extends Phaser.Scene {
 
   async sevenDoorsStage() {
     this.checkpoint("sevenDoors");
-    this.physics.world.setBounds(0, 0, W, H);
-    this.cameras.main.setBounds(0, 0, W, H);
+    const doorWorldWidth = 1700;
+    this.physics.world.setBounds(0, 0, doorWorldWidth, H);
+    this.cameras.main.setBounds(0, 0, doorWorldWidth, H);
     this.cameras.main.setBackgroundColor(0x121a38);
-    this.add.rectangle(W / 2, H / 2, W, H, 0x121a38);
-    this.addStars(W, H, 100);
-    this.addGround(W, 800, 0x283152);
+    this.add.rectangle(doorWorldWidth / 2, H / 2, doorWorldWidth, H, 0x121a38);
+    this.addStars(doorWorldWidth, H, 130);
+    this.addGround(doorWorldWidth, FLOOR_Y, 0x283152);
     this.doors = [];
     DOORS.forEach(([day, title], index) => {
       const x = 190 + index * 205;
       const color = index === 0 ? 0xffd166 : 0x505a78;
-      const door = this.add.rectangle(x, 630, 130, 230, color, index === 0 ? .95 : .65).setStrokeStyle(8, index === 0 ? 0xffefb0 : 0x747d99).setDepth(7);
-      this.add.rectangle(x, 620, 80, 170, index === 0 ? 0x2f4b70 : 0x252b43).setDepth(8);
-      this.add.circle(x + 26, 630, 7, index === 0 ? 0xffd166 : 0x777d90).setDepth(9);
-      this.addLabel(x, 470, day, { size: "20px", color: index === 0 ? "#ffe7a3" : "#a8aec0" });
-      this.addLabel(x, 515, title, { size: "16px", color: index === 0 ? "#ffffff" : "#969caf", wrap: 180 });
-      if (index > 0) this.addLabel(x, 625, "잠김", { size: "17px", color: "#aeb2c0" });
+      const doorY = FLOOR_Y - 140;
+      const door = this.add.rectangle(x, doorY, 130, 230, color, index === 0 ? .95 : .65).setStrokeStyle(8, index === 0 ? 0xffefb0 : 0x747d99).setDepth(7);
+      this.add.rectangle(x, doorY - 10, 80, 170, index === 0 ? 0x2f4b70 : 0x252b43).setDepth(8);
+      this.add.circle(x + 26, doorY, 7, index === 0 ? 0xffd166 : 0x777d90).setDepth(9);
+      this.addLabel(x, doorY - 190, day, { size: "20px", color: index === 0 ? "#ffe7a3" : "#a8aec0" });
+      this.addLabel(x, doorY - 145, title, { size: "16px", color: index === 0 ? "#ffffff" : "#969caf", wrap: 180 });
+      if (index > 0) this.addLabel(x, doorY - 5, "잠김", { size: "17px", color: "#aeb2c0" });
       this.doors.push({ index, x, door });
     });
-    this.makePlayer(75, 700);
+    this.makePlayer(75, FLOOR_Y - 100);
     this.player.setScale(.8);
     this.player.body.setSize(52, 94).setOffset(14, 10);
     this.physics.add.collider(this.player, this.platforms);
+    this.cameras.main.startFollow(this.player, true, .14, .14, -80, 0);
     await this.ui.storyCard({
       kicker: "앞으로 이어질 7일",
       title: "7개의 문이 기다리고 있어요",
@@ -734,8 +749,8 @@ export class OrientationScene extends Phaser.Scene {
     this.checkpoint("firstQuestion");
     this.cameras.main.setBackgroundColor(0x203658);
     this.addStars(W, H, 100);
-    this.add.circle(W / 2, 390, 220, 0xffd166, .08);
-    this.addLabel(W / 2, 390, "?", { size: "240px", color: "#ffd166", strokeWidth: 0 });
+    this.add.circle(W / 2, H / 2, 220, 0xffd166, .08);
+    this.addLabel(W / 2, H / 2, "?", { size: "240px", color: "#ffd166", strokeWidth: 0 });
     const answer = await this.ui.inputCard({
       kicker: "첫 질문",
       title: "너는 어떤 사람이 되고 싶어?",
@@ -755,9 +770,9 @@ export class OrientationScene extends Phaser.Scene {
     this.mode = "prayer";
     this.cameras.main.setBackgroundColor(0x11152a);
     this.addStars(W, H, 80);
-    this.add.rectangle(W / 2, 650, 900, 10, 0x4f5870).setDepth(2);
-    this.add.rectangle(W / 2, 500, 120, 160, 0x6d5238).setStrokeStyle(8, 0xd8b46c).setDepth(3);
-    this.add.circle(W / 2, 410, 26, 0xffedaa, .8).setDepth(4);
+    this.add.rectangle(W / 2, H * .72, W, 10, 0x4f5870).setDepth(2);
+    this.add.rectangle(W / 2, H * .6, 120, 160, 0x6d5238).setStrokeStyle(8, 0xd8b46c).setDepth(3);
+    this.add.circle(W / 2, H * .6 - 90, 26, 0xffedaa, .8).setDepth(4);
     await this.ui.storyCard({
       kicker: "시작 기도",
       title: "예수님께 그냥 이야기해도 괜찮아요",
@@ -779,15 +794,16 @@ export class OrientationScene extends Phaser.Scene {
     this.checkpoint("ending", { completed: true });
     this.cameras.main.setBackgroundColor(0x10182f);
     this.addStars(W, H, 130);
-    this.add.rectangle(W / 2, 760, W, 280, 0x1d3047).setDepth(2);
-    this.add.rectangle(1260, 600, 240, 310, 0x4a4051).setDepth(3);
-    this.add.triangle(1260, 380, 0, 180, 240, 180, 120, 0, 0x5c4a58).setDepth(4);
-    this.add.rectangle(1260, 490, 22, 100, 0xffd166, .82).setDepth(5);
-    this.add.rectangle(1220, 530, 56, 90, 0xffdf87, .5).setDepth(5);
+    this.add.rectangle(W / 2, H - 220, W, 440, 0x1d3047).setDepth(2);
+    const churchX = W * .76;
+    this.add.rectangle(churchX, H - 470, 240, 310, 0x4a4051).setDepth(3);
+    this.add.triangle(churchX, H - 690, 0, 180, 240, 180, 120, 0, 0x5c4a58).setDepth(4);
+    this.add.rectangle(churchX, H - 580, 22, 100, 0xffd166, .82).setDepth(5);
+    this.add.rectangle(churchX - 40, H - 540, 56, 90, 0xffdf87, .5).setDepth(5);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
     this.makePlayerTexture();
-    this.add.image(650, 700, "player-custom").setDepth(8);
-    this.add.image(770, 700, "carlo").setDepth(8);
+    this.add.image(W * .34, H - 300, "player-custom").setDepth(8);
+    this.add.image(W * .49, H - 300, "carlo").setDepth(8);
     const first = current.firstAnswer || "아직 모르겠어요";
     await this.ui.storyCard({
       kicker: "0. 오리엔테이션 완료",
@@ -823,16 +839,30 @@ export class OrientationScene extends Phaser.Scene {
     if (!this.player || !this.isPlayMode() || this.physics.world.isPaused) return;
     const body = this.player.body;
     const grounded = body.blocked.down || body.touching.down;
-    if (grounded) this.lastGroundedAt = time;
+    if (grounded) {
+      this.lastGroundedAt = time;
+      this.jumpCount = 0;
+    }
     const left = this.controls.state.left;
     const right = this.controls.state.right;
     let speed = this.mode === "notificationRun" ? 330 : 430;
     if (this.mode === "notificationRun") this.player.setVelocityX(260 + (right ? 160 : 0) - (left ? 260 : 0));
     else if (left !== right) this.player.setVelocityX(left ? -speed : speed);
     else this.player.setVelocityX(0);
-    if (this.controls.consumeJump() && (grounded || time - this.lastGroundedAt < 120)) {
-      this.player.setVelocityY(this.mode === "lookUp" ? -870 : -690);
-      this.lastGroundedAt = -1000;
+    if (this.controls.consumeJump()) {
+      if (grounded || time - this.lastGroundedAt < 120) {
+        this.player.setVelocityY(this.mode === "lookUp" ? -780 : -690);
+        this.jumpCount = 1;
+        this.lastGroundedAt = -1000;
+      } else if (this.jumpCount === 1) {
+        this.player.setVelocityY(this.mode === "lookUp" ? -930 : -840);
+        this.jumpCount = 2;
+        this.tweens.add({ targets: this.player, scaleX: this.player.scaleX * 1.14, scaleY: this.player.scaleY * .88, yoyo: true, duration: 90 });
+        if (!this.doubleJumpHintShown) {
+          this.doubleJumpHintShown = true;
+          this.ui.toast("2단 점프! 공중에서 한 번 더 높이 뛰었어요.", 1500);
+        }
+      }
     }
     if (body.velocity.x !== 0) this.player.setFlipX(body.velocity.x < 0);
 
