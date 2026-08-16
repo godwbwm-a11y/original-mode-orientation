@@ -31,7 +31,6 @@ export class OrientationScene extends Phaser.Scene {
     this.lastGroundedAt = 0;
     this.jumpCount = 0;
     this.doubleJumpHintShown = false;
-    this.notificationFreedom = 0;
     this.lookUpLight = 0;
   }
 
@@ -255,7 +254,7 @@ export class OrientationScene extends Phaser.Scene {
   }
 
   isPlayMode() {
-    return ["copyCity", "carloDay", "copyFactory", "notificationRun", "goodPoints", "lookUp", "sevenDoors"].includes(this.mode);
+    return ["copyCity", "carloDay", "copyFactory", "goodPoints", "lookUp", "sevenDoors"].includes(this.mode);
   }
 
   setPlay(stage, title, objective, label = "살펴보기") {
@@ -531,108 +530,11 @@ export class OrientationScene extends Phaser.Scene {
       placeholder: "예: 친구 이야기를 잘 들어줘요.",
       value: this.getSave().note || ""
     });
-    this.checkpoint("notificationRun", { note });
+    this.checkpoint("quietChurch", { note });
     await this.ui.storyCard({
       kicker: "저장했어요",
       title: "이 노트는 점수표가 아니에요",
       html: "<p>남과 비교하지 않고, 하느님께서 내게 주신 것을 발견하는 작은 기록이에요.</p>",
-      actions: [{ label: "다음 길로 달려가기", value: "next", primary: true }]
-    });
-    this.goto("notificationRun");
-  }
-
-  async notificationRunStage() {
-    this.checkpoint("notificationRun");
-    const width = 3400;
-    this.physics.world.setBounds(0, 0, width, H);
-    this.cameras.main.setBounds(0, 0, width, H);
-    this.cameras.main.setBackgroundColor(0x19213b);
-    this.add.rectangle(width / 2, H / 2, width, H, 0x19213b);
-    for (let x = 0; x < width; x += 420) {
-      this.add.circle(x + 180, this.worldY(190 + (x % 800) / 8), 70, 0x324267, .35);
-      this.addLabel(x + 180, this.worldY(190 + (x % 800) / 8), ["알림", "새 소식", "메시지", "영상"][Math.floor(x / 420) % 4], { size: "22px", color: "#8d99b7" });
-    }
-    this.addGround(width, FLOOR_Y, 0x293653);
-    this.makePlayer(150, FLOOR_Y - 100);
-    this.physics.add.collider(this.player, this.platforms);
-    this.cameras.main.startFollow(this.player, true, .16, .16, -100, 0);
-    this.noticeCounts = { bell: 0, chat: 0, video: 0, heart: 0 };
-    this.notificationFreedom = 0;
-    const notices = [
-      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"],
-      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"],
-      ["bell", "🔔"], ["chat", "💬"], ["video", "▶️"], ["heart", "❤️"]
-    ];
-    notices.forEach(([type, icon], index) => {
-      const x = 520 + index * 235;
-      const y = FLOOR_Y - 145 - (index % 2) * 22;
-      const halo = this.add.circle(x, y, 58, [0xffd166, 0x6acbff, 0xff7e8d, 0xff9fc7][index % 4], .18).setDepth(9);
-      const notice = this.addLabel(x, y, icon, { size: "54px", strokeWidth: 0, depth: 10 });
-      notice.noticeType = type; notice.halo = halo;
-      this.physics.add.existing(notice, true);
-      notice.body.setSize(78, 78);
-      this.physics.add.overlap(this.player, notice, () => this.collectNotification(notice));
-      this.tweens.add({ targets: [notice, halo], y: y - 18, yoyo: true, repeat: -1, duration: 650 + index * 35 });
-    });
-    this.addLabel(W / 2, 230, "같은 알림 3개를 모으면 톡! 사라져요", { size: "28px", color: "#ffe7a3", wrap: 760, depth: 40 }).setScrollFactor(0);
-    this.setPlay("notificationRun", "알림 자유 찾기", "같은 알림을 3개씩 모아 자유의 빛 4개를 만들어요.", "생각하기");
-  }
-
-  collectNotification(notice) {
-    if (!notice?.active || this.busy) return;
-    const type = notice.noticeType;
-    notice.halo?.destroy();
-    const x = notice.x; const y = notice.y;
-    notice.destroy();
-    this.noticeCounts[type] += 1;
-    const icons = { bell: "🔔", chat: "💬", video: "▶️", heart: "❤️" };
-    if (this.noticeCounts[type] >= 3) {
-      this.noticeCounts[type] = 0;
-      this.notificationFreedom += 1;
-      for (let i = 0; i < 12; i += 1) {
-        const spark = this.add.circle(x, y, 10 + (i % 3) * 3, i % 2 ? 0xffd166 : 0x7de5ff, .9).setDepth(25);
-        const angle = (Math.PI * 2 * i) / 12;
-        this.tweens.add({ targets: spark, x: x + Math.cos(angle) * 150, y: y + Math.sin(angle) * 150, alpha: 0, scale: .2, duration: 620, onComplete: () => spark.destroy() });
-      }
-      this.cameras.main.flash(180, 255, 225, 130, false);
-      this.ui.toast(`${icons[type]} 3개가 톡! 알림으로부터 한 걸음 자유로워졌어요.`, 1800);
-    } else {
-      this.ui.toast(`${icons[type]} ${this.noticeCounts[type]}/3 · 같은 알림을 더 모아보세요.`, 900);
-    }
-    this.ui.setHud("알림 자유 찾기", `자유의 빛 ${this.notificationFreedom}/4 · 같은 알림 3개를 모아요.`);
-    if (this.notificationFreedom >= 4) {
-      this.busy = true;
-      this.player?.setVelocity(0, 0);
-      this.physics.pause();
-      this.time.delayedCall(900, () => { this.busy = false; this.finishNotificationRun(); });
-    }
-  }
-
-  async finishNotificationRun() {
-    if (this.busy) return;
-    this.busy = true;
-    this.player?.setVelocity(0, 0);
-    this.physics.pause();
-    await this.ui.storyCard({
-      kicker: "잠깐 멈춤",
-      title: "알림이 사라지니 마음에 자리가 생겼어요",
-      html: `<p>알림을 없애는 것이 목표가 아니라, 내가 멈추고 선택할 수 있다는 것을 연습했어요.</p><p><span class="speaker">카를로</span> “스마트폰은 도구야. 중요한 것은 누가 주인인가 하는 거야.”</p><p class="big-line">누가 도구를 사용하고 있을까?</p>`
-    });
-    const answer = await this.ui.choiceCard({
-      kicker: "생각해 보기",
-      title: "요즘 나는 어떤 것 같아?",
-      help: "어떤 답을 골라도 혼나지 않아요. 솔직하게 생각해 보세요.",
-      options: [
-        { label: "내가 스마트폰을 잘 사용하고 있어요", value: "내가 잘 사용하고 있어요" },
-        { label: "가끔 스마트폰에 끌려가요", value: "가끔 끌려가요" },
-        { label: "잘 모르겠어요", value: "잘 모르겠어요" }
-      ]
-    });
-    this.checkpoint("quietChurch", { phoneThought: answer });
-    await this.ui.storyCard({
-      kicker: "카를로의 제안",
-      title: "잠깐 쉬어볼래?",
-      html: "<p>“도구를 버릴 필요는 없어. 다만 잠깐 내려놓고, 정말 중요한 분을 바라볼 수 있어.”</p>",
       actions: [{ label: "조용한 성당으로", value: "next", primary: true }]
     });
     this.goto("quietChurch");
@@ -987,9 +889,8 @@ export class OrientationScene extends Phaser.Scene {
     }
     const left = this.controls.state.left;
     const right = this.controls.state.right;
-    let speed = this.mode === "notificationRun" ? 330 : 430;
-    if (this.mode === "notificationRun") this.player.setVelocityX(260 + (right ? 160 : 0) - (left ? 260 : 0));
-    else if (left !== right) this.player.setVelocityX(left ? -speed : speed);
+    const speed = 430;
+    if (left !== right) this.player.setVelocityX(left ? -speed : speed);
     else this.player.setVelocityX(0);
     if (this.controls.consumeJump()) {
       if (grounded || time - this.lastGroundedAt < 120) {

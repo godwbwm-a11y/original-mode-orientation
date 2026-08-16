@@ -10,7 +10,6 @@ const defaults = {
   discoveries: [],
   interests: [],
   note: "",
-  phoneThought: "",
   goodPoints: {},
   firstAnswer: ""
 };
@@ -19,7 +18,9 @@ export function loadSave() {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) || "null");
     if (!stored || stored.version !== defaults.version) return structuredClone(defaults);
-    return { ...structuredClone(defaults), ...stored, avatar: { ...defaults.avatar, ...(stored.avatar || {}) } };
+    const save = { ...structuredClone(defaults), ...stored, avatar: { ...defaults.avatar, ...(stored.avatar || {}) } };
+    if (save.checkpoint === "notificationRun") save.checkpoint = "quietChurch";
+    return save;
   } catch {
     return structuredClone(defaults);
   }

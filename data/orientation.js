@@ -1,6 +1,6 @@
 export const STAGES = [
   "title", "avatar", "copyCity", "meetCarlo", "carloDay", "copyFactory", "originalNote",
-  "notificationRun", "quietChurch", "goodPoints", "lookUp", "sevenDoors", "firstQuestion", "prayer", "ending"
+  "quietChurch", "goodPoints", "lookUp", "sevenDoors", "firstQuestion", "prayer", "ending"
 ];
 
 export const CITY_NPCS = [
