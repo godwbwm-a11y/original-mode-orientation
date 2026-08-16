@@ -1,4 +1,4 @@
-import { STAGES, CITY_NPCS, DISCOVERIES, INTEREST_OPTIONS, GOOD_NPCS, DOORS } from "../data/orientation.js";
+import { STAGES, CITY_NPCS, DISCOVERIES, GOOD_NPCS, DOORS } from "../data/orientation.js";
 import { writeSave } from "./storage.js";
 
 const W = 900;
@@ -25,6 +25,7 @@ export class OrientationScene extends Phaser.Scene {
     this.busy = false;
     this.near = null;
     this.player = null;
+    this.carloCompanion = null;
     this.platforms = null;
     this.cursors = null;
     this.lastGroundedAt = 0;
@@ -92,6 +93,7 @@ export class OrientationScene extends Phaser.Scene {
     this.physics.world.colliders.destroy();
     this.physics.world.setBounds(0, 0, W, H);
     this.cameras.main.stopFollow();
+    this.cameras.main.resetFX();
     this.cameras.main.setBounds(0, 0, W, H);
     this.cameras.main.setScroll(0, 0);
     this.cameras.main.setZoom(1);
@@ -133,6 +135,18 @@ export class OrientationScene extends Phaser.Scene {
     g.fillStyle(shirt).fillRoundedRect(10, 35, 58, 42, 10);
     g.fillStyle(skin).fillRoundedRect(20, 8, 40, 39, 12);
     g.fillStyle(hair).fillRoundedRect(17, 3, 46, 20, 10);
+    g.fillStyle(0x171421).fillRect(30, 25, 4, 4).fillRect(47, 25, 4, 4);
+    g.generateTexture(key, 80, 104); g.destroy();
+  }
+
+  makeFemaleTexture(key, shirt = 0xa7649f, skin = 0xd39b72, hair = 0x37241f) {
+    if (this.textures.exists(key)) return;
+    const g = this.make.graphics({ add: false });
+    g.fillStyle(hair).fillRoundedRect(13, 3, 54, 66, 18);
+    g.fillStyle(0x222a42).fillRect(20, 78, 15, 25).fillRect(45, 78, 15, 25);
+    g.fillStyle(shirt).fillTriangle(40, 38, 8, 84, 72, 84).fillRoundedRect(15, 32, 50, 35, 10);
+    g.fillStyle(skin).fillRoundedRect(20, 8, 40, 39, 12);
+    g.fillStyle(hair).fillRoundedRect(17, 3, 46, 20, 10).fillRect(14, 15, 9, 48).fillRect(57, 15, 9, 48);
     g.fillStyle(0x171421).fillRect(30, 25, 4, 4).fillRect(47, 25, 4, 4);
     g.generateTexture(key, 80, 104); g.destroy();
   }
@@ -297,14 +311,14 @@ export class OrientationScene extends Phaser.Scene {
     this.addCityBackdrop(width, false);
     this.addGround(width);
     this.makePersonTexture("city-npc", 0x666b76, 0xb58b72, 0x3a3b43);
+    this.makeFemaleTexture("city-npc-female", 0x8d6a98, 0xc79372, 0x3a2a28);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
     this.interactives = [];
     CITY_NPCS.forEach((data, index) => {
       const x = 650 + index * 470;
-      const npc = this.physics.add.sprite(x, FLOOR_Y - 70, "city-npc").setDepth(10).setImmovable(true);
+      const npc = this.physics.add.sprite(x, FLOOR_Y - 70, data.female ? "city-npc-female" : "city-npc").setDepth(10).setImmovable(true);
       npc.body.setAllowGravity(false);
-      this.addLabel(x, FLOOR_Y - 214, data.name, { size: "24px", color: "#f0e4bc" });
-      this.addLabel(x, FLOOR_Y - 178, data.number, { size: "18px", color: "#9297a8" });
+      this.addLabel(x, FLOOR_Y - 195, data.name, { size: "24px", color: "#f0e4bc" });
       this.interactives.push({ type: "npc", x, ...data, npc });
     });
     this.add.circle(3450, FLOOR_Y - 50, 25, 0xf4f1df).setStrokeStyle(8, 0x293048).setDepth(9);
@@ -325,8 +339,8 @@ export class OrientationScene extends Phaser.Scene {
     this.busy = true;
     if (target.type === "npc") {
       await this.ui.storyCard({
-        kicker: `${target.number} · ${target.name}`,
-        title: "도시에서 들린 말",
+        kicker: "복사본 도시의 친구",
+        title: target.name,
         html: `<p><span class="speaker">${target.name}</span> “${target.line}”</p><p class="thought-line"><strong>나는 생각했다.</strong><br>‘${target.thought}’</p>`
       });
       this.setPlay("copyCity", "복사본 도시", "오른쪽 끝에서 청바지를 입은 소년을 만나보세요.", "대화");
@@ -339,49 +353,57 @@ export class OrientationScene extends Phaser.Scene {
   async meetCarloStage() {
     this.checkpoint("meetCarlo");
     this.mode = "meetCarlo";
-    this.cameras.main.setBackgroundColor(0x09101e);
-    this.addCityBackdrop(W, false);
-    this.add.rectangle(W / 2, H / 2, W, H, 0x07101f, .48).setDepth(6);
+    this.cameras.main.setBackgroundColor(0x8fd6f2);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x8fd6f2).setDepth(0);
+    this.add.circle(720, 240, 95, 0xffed9e, .95).setDepth(1);
+    [120, 430, 760].forEach((x, i) => {
+      const cloud = this.add.ellipse(x, 350 + i * 55, 230, 75, 0xffffff, .8).setDepth(1);
+      this.tweens.add({ targets: cloud, x: x + 80, yoyo: true, repeat: -1, duration: 3500 + i * 600 });
+    });
+    this.add.rectangle(W / 2, FLOOR_Y - 120, W, 370, 0x72b879).setDepth(2);
+    this.add.rectangle(W / 2, FLOOR_Y + 45, W, 90, 0x4f7d56).setDepth(3);
+    this.add.rectangle(450, FLOOR_Y - 50, 630, 8, 0xffffff, .75).setDepth(4);
+    this.add.rectangle(680, FLOOR_Y - 150, 12, 160, 0xffffff).setDepth(4);
+    this.add.rectangle(800, FLOOR_Y - 150, 12, 160, 0xffffff).setDepth(4);
+    this.add.rectangle(740, FLOOR_Y - 225, 132, 10, 0xffffff).setDepth(4);
     this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
     this.makePlayerTexture();
-    const light = this.add.circle(W * .68, H * .61, 230, 0xffdf86, .06).setDepth(7).setScale(.2);
-    const me = this.add.image(W * .25, H * .67, "player-custom").setScale(2.2).setDepth(10).setTint(0x71809a);
-    const carlo = this.add.image(W * .72, H * .65, "carlo").setScale(1.75).setDepth(10).setAlpha(0);
-    this.add.rectangle(W / 2, 70, W, 140, 0x000000).setDepth(30);
-    this.add.rectangle(W / 2, H - 70, W, 140, 0x000000).setDepth(30);
-    const caption = this.addLabel(W / 2, 245, "복사본 도시의 소리가\n갑자기 멀어졌다.", { size: "29px", color: "#e6e9f2", wrap: 650, depth: 31 }).setAlpha(0);
-    this.cameras.main.fadeIn(850, 0, 0, 0);
-    this.tweens.add({ targets: caption, alpha: 1, duration: 700, yoyo: true, hold: 900 });
-    await wait(2100);
-    this.tweens.add({ targets: carlo, alpha: 1, scaleX: 2.2, scaleY: 2.2, duration: 850, ease: "Sine.easeOut" });
-    this.tweens.add({ targets: light, scale: 1, alpha: .14, duration: 1000 });
-    await wait(1050);
-    const nameCard = this.addLabel(W / 2, H - 245, "카를로 아쿠티스", { size: "38px", color: "#ffd166", depth: 31 }).setAlpha(0);
-    this.tweens.add({ targets: nameCard, alpha: 1, duration: 500 });
-    await wait(700);
-    await this.ui.storyCard({
-      kicker: "장면 전환",
-      title: "청바지와 운동화를 신은 소년",
-      html: `<p>도시의 회색빛 사이로 한 소년이 보였어요.</p><p>그가 웃으며 휴대전화를 꺼냈어요. 화면에 새 메시지가 도착했어요.</p>`,
-      actions: [{ label: "메시지 열기", value: "chat", primary: true }]
-    });
+    const me = this.add.image(240, FLOOR_Y - 95, "player-custom").setScale(2.05).setDepth(10);
+    const ball = this.addLabel(W + 70, FLOOR_Y - 45, "⚽", { size: "64px", strokeWidth: 0, depth: 12 });
+    const carlo = this.add.image(W + 180, FLOOR_Y - 95, "carlo").setScale(2.05).setDepth(10);
+    this.cameras.main.fadeIn(650, 255, 255, 255);
+    await wait(500);
+    this.tweens.add({ targets: ball, x: 350, angle: -720, duration: 1200, ease: "Sine.easeOut" });
+    await wait(900);
+    this.tweens.add({ targets: carlo, x: 685, duration: 780, ease: "Back.easeOut" });
+    this.tweens.add({ targets: carlo, y: FLOOR_Y - 112, yoyo: true, repeat: 5, duration: 110 });
+    await wait(950);
+    const hello = this.addLabel(650, FLOOR_Y - 265, "쪼르륵!", { size: "35px", color: "#fff1ad", depth: 20 }).setScale(.5);
+    this.tweens.add({ targets: hello, scale: 1.15, yoyo: true, hold: 450, duration: 220 });
+    await wait(650);
     await this.ui.chatCard({
-      kicker: "카를로와 나눈 메시지",
-      title: "카를로",
+      kicker: "축구공과 함께 찾아온 친구",
+      title: "카를로 아쿠티스",
       messages: [
-        { from: "me", text: "너는 누구야?" },
+        { from: "me", text: "축구공? 너는 누구야?" },
         { from: "carlo", text: "나는 카를로야. 만나서 반가워!" },
-        { from: "me", text: "성인도 축구하고 게임을 해?" },
-        { from: "carlo", text: "그럼! 나도 축구, 컴퓨터, 게임을 정말 좋아했어." },
-        { from: "me", text: "그럼 나도 너처럼 되어야 해?" },
-        { from: "carlo", text: "내 복사본이 될 필요는 없어. 하느님께서 만드신 너 자신이 되면 돼." },
-        { from: "carlo", text: "내 평범한 하루를 함께 걸어볼래? 그 안에서 내가 가장 사랑한 분도 소개해 줄게." }
+        { from: "me", text: "카를로? 이번 주에 우리 성당에 유해가 온다는 그 카를로 아쿠티스 성인?" },
+        { from: "carlo", text: "맞아! 그게 바로 나요! 잇츠 미! 안나오면 쳐들어간다 쿵짜자쿵짜!" },
+        { from: "me", text: "성인이 축구도 해?" },
+        { from: "carlo", text: "그럼! 나도 축구, 게임, 레고 정말 좋아했어! 이따가 나랑 게임할래?" },
+        { from: "me", text: "아니... 그래도 성인이 될 수 있어?" },
+        { from: "carlo", text: "이지까까지! 성인이 될 수 있어!" },
+        { from: "me", text: "근데 천국은 좋아?" },
+        { from: "carlo", text: "엄청 좋아! 너도 꼭 천국에 왔으면 좋겠어!" },
+        { from: "me", text: "그럼 나도 너처럼 살아야 해?" },
+        { from: "carlo", text: "아니. 내 복사본이 될 필요는 없어! 하느님께서 만들어주신대로 너 자신이 되면 돼." },
+        { from: "carlo", text: "나의 평범했던 하루를 함께 걸어볼래? 그 안에서 내가 가장 사랑한 분도 소개해줄게." }
       ],
-      button: "카를로의 하루로"
+      button: "카를로와 함께 출발!",
+      bright: true
     });
-    me.clearTint();
-    this.cameras.main.fadeOut(650, 255, 232, 166);
-    await wait(680);
+    this.tweens.add({ targets: [me, carlo], x: "+=180", duration: 500 });
+    await wait(520);
     this.goto("carloDay");
   }
 
@@ -392,12 +414,17 @@ export class OrientationScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, width, H);
     this.addCarloDayBackdrop(width);
     this.addGround(width, FLOOR_Y, 0x57785d);
-    [[1040, 620, 330], [2180, 590, 330], [3500, 650, 320]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x8b9c80));
+    [[1320, 620, 330], [2600, 590, 330], [3060, 620, 300], [3680, 680, 280]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x8b9c80));
     this.makePlayer(130, FLOOR_Y - 100);
+    this.makePersonTexture("carlo", 0x3b75c4, 0xd39b72, 0x3b271e);
+    this.carloCompanion = this.add.image(55, FLOOR_Y - 82, "carlo").setDepth(18).setScale(.9);
     this.physics.add.collider(this.player, this.platforms);
     this.cameras.main.startFollow(this.player, true, .14, .14, -100, 0);
     this.discoverySprites = [];
-    const found = new Set(this.getSave().discoveries || []);
+    const validIds = new Set(DISCOVERIES.map((item) => item.id));
+    const savedDiscoveries = (this.getSave().discoveries || []).filter((id) => validIds.has(id));
+    if (savedDiscoveries.length !== (this.getSave().discoveries || []).length) this.checkpoint("carloDay", { discoveries: savedDiscoveries });
+    const found = new Set(savedDiscoveries);
     for (const item of DISCOVERIES) {
       if (found.has(item.id)) continue;
       const itemY = this.worldY(item.y);
@@ -411,7 +438,7 @@ export class OrientationScene extends Phaser.Scene {
       this.physics.add.overlap(this.player, symbol, () => this.collectDiscovery(symbol));
     }
     this.updateDiscoveryHud();
-    this.setPlay("carloDay", "카를로의 하루", "빛나는 물건 6개를 찾아보세요.");
+    this.setPlay("carloDay", "카를로의 하루", `카를로와 함께 빛나는 물건 ${DISCOVERIES.length}개를 찾아보세요.`);
     if (found.size >= DISCOVERIES.length) this.finishCarloDay();
   }
 
@@ -420,105 +447,69 @@ export class OrientationScene extends Phaser.Scene {
     this.busy = true;
     this.physics.pause();
     const save = this.getSave();
-    const discoveries = [...new Set([...(save.discoveries || []), symbol.item.id])];
+    const validIds = new Set(DISCOVERIES.map((item) => item.id));
+    const discoveries = [...new Set([...(save.discoveries || []).filter((id) => validIds.has(id)), symbol.item.id])];
     this.checkpoint("carloDay", { discoveries });
     const item = symbol.item;
     symbol.glow?.destroy(); symbol.disableBody?.(true, true); symbol.destroy();
     this.updateDiscoveryHud();
     await this.ui.storyCard({
-      kicker: `${item.place} · 발견 ${discoveries.length}/6`,
+      kicker: `${item.place} · 발견 ${discoveries.length}/${DISCOVERIES.length}`,
       title: `${item.symbol} ${item.label}을 찾았어요`,
       html: `<p>${item.note}</p><p class="big-line">${item.detail}</p>`,
-      actions: [{ label: item.id === "ball" ? "카를로와 공 차기" : "계속 탐색하기", value: "next", primary: true }]
+      actions: [{ label: ({ ball: "카를로와 축구하기", computer: "함께 빙고하기", rosary: "기도문 퀴즈 시작", homeless: "사랑의 용돈 모으기", church: "성당 이야기 듣기" })[item.id], value: "next", primary: true }]
     });
     if (item.id === "ball") await this.ui.soccerMiniGame();
+    else if (item.id === "computer") await this.ui.bingoMiniGame();
+    else if (item.id === "rosary") await this.ui.prayerQuizGame();
+    else if (item.id === "homeless") await this.ui.choresMiniGame();
+    else if (item.id === "church") {
+      await this.ui.storyCard({
+        kicker: "카를로가 가장 사랑한 만남",
+        title: "성체성사 안의 예수님",
+        html: `<p><span class="speaker">카를로</span> “나는 미사와 성체성사를 정말 좋아했어. 성체 안에서 살아 계신 예수님을 만날 수 있으니까.”</p><p>카를로는 가능한 날에는 자주 미사에 참여하고 성체조배를 하며 예수님 곁에 머물렀어요.</p><p class="big-line">평범한 하루를 예수님과 함께 살았어요.</p>`
+      });
+    }
     this.physics.resume();
-    this.setPlay("carloDay", "카를로의 하루", `발견 ${discoveries.length}/6 · 밝은 길을 계속 걸어보세요.`);
+    this.setPlay("carloDay", "카를로의 하루", `발견 ${discoveries.length}/${DISCOVERIES.length} · 카를로와 밝은 길을 계속 걸어보세요.`);
     this.busy = false;
     if (discoveries.length >= DISCOVERIES.length) await this.finishCarloDay();
   }
 
   updateDiscoveryHud() {
-    const count = this.getSave().discoveries?.length || 0;
-    this.ui.setHud("카를로의 하루", `발견 ${count}/6 · 평범한 하루 안에 무엇이 있었을까요?`);
+    const validIds = new Set(DISCOVERIES.map((item) => item.id));
+    const count = (this.getSave().discoveries || []).filter((id) => validIds.has(id)).length;
+    this.ui.setHud("카를로의 하루", `발견 ${count}/${DISCOVERIES.length} · 카를로와 함께 평범한 하루를 걸어요.`);
   }
 
   async finishCarloDay() {
     if (this.busy) return;
     this.busy = true;
     await this.ui.storyCard({
-      kicker: "여섯 가지 발견",
+      kicker: `${DISCOVERIES.length}가지 발견`,
       title: "카를로도 우리와 비슷했어요",
-      html: `<p>학교 운동장에서 뛰고, 거리를 걷고, 광장에서 사람들을 만나고, 컴퓨터와 게임도 좋아했어요.</p><p>그 평범한 하루의 끝에는 성당이 있었어요.</p><p class="big-line">성인은 특별한 척하는 사람이 아니라, 평범한 삶에서 하느님을 선택한 사람이에요.</p>`
+      html: `<p>축구와 컴퓨터를 즐기고, 부모님을 도와 용돈을 모으고, 도움이 필요한 이웃과 나누었어요.</p><p>기도하며 걸은 그 평범한 하루의 중심에는 성체 안의 예수님이 계셨어요.</p><p class="big-line">성인은 특별한 척하는 사람이 아니라, 평범한 삶에서 사랑을 선택한 사람이에요.</p>`
     });
     this.goto("copyFactory");
   }
 
   async copyFactoryStage() {
     this.checkpoint("copyFactory");
-    const width = 4500;
-    this.physics.world.setBounds(0, 0, width, H);
-    this.cameras.main.setBounds(0, 0, width, H);
-    this.cameras.main.setBackgroundColor(0x161a28);
-    this.add.rectangle(width / 2, H / 2, width, H, 0x161a28).setDepth(0);
-    for (let x = 150; x < width; x += 330) {
-      this.add.rectangle(x, this.worldY(420), 170, 330, 0x303646).setDepth(1);
-      this.add.circle(x, this.worldY(390), 56, 0x6c7181, .3).setDepth(2);
-      this.add.rectangle(x, this.worldY(570), 110, 80, 0x777c89, .28).setDepth(2);
-    }
-    this.addGround(width, FLOOR_Y, 0x2d3342);
-    [[760, 690, 260], [1210, 590, 260], [1710, 690, 250], [2380, 610, 280], [3000, 670, 280], [3560, 570, 280]].forEach(([x, y, w]) => this.addPlatform(x, this.worldY(y), w, 0x6d7483));
-    const hazards = [];
-    [940, 1920, 2740, 3770].forEach((x) => {
-      const spike = this.add.triangle(x, this.worldY(755), 0, 60, 42, 0, 84, 60, 0xff6070).setDepth(7);
-      this.physics.add.existing(spike, true);
-      hazards.push(spike);
+    this.mode = "copyFactory";
+    this.cameras.main.setBackgroundColor(0x233b68);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x233b68).setDepth(0);
+    ["🌅", "🏫", "🎒", "🌙"].forEach((icon, index) => {
+      const tile = this.add.rectangle(175 + (index % 2) * 550, 470 + Math.floor(index / 2) * 510, 320, 330, [0xf6bd60, 0x6ec5e9, 0x8fd694, 0x7669b5][index], .9).setDepth(2).setRotation(index % 2 ? .04 : -.04);
+      this.addLabel(tile.x, tile.y, icon, { size: "92px", strokeWidth: 0, depth: 3 });
+      this.tweens.add({ targets: tile, y: tile.y - 18, yoyo: true, repeat: -1, duration: 1000 + index * 170 });
     });
-    for (let x = 400; x < width; x += 760) this.addLabel(x, this.worldY(520), ["인기", "유행", "좋아요", "따라 하기", "비교"][Math.floor(x / 760) % 5], { size: "34px", color: "#9499aa" });
-    this.factoryGates = [1150, 2450, 3500];
-    this.factoryGateDone = new Set();
-    this.makePlayer(140, FLOOR_Y - 100);
-    this.physics.add.collider(this.player, this.platforms);
-    hazards.forEach((hazard) => {
-      this.physics.add.overlap(this.player, hazard, () => this.bumpPlayer());
-    });
-    this.cameras.main.startFollow(this.player, true, .13, .13, -100, 0);
-    this.setPlay("copyFactory", "복사본 공장", "장애물을 넘고, 내가 좋아하는 것을 골라 색을 되찾아 보세요.");
-  }
-
-  bumpPlayer() {
-    if (!this.player || this.player.getData("bumped")) return;
-    this.player.setData("bumped", true).setTint(0xff8b96).setVelocity(-260, -420);
-    this.ui.toast("괜찮아요. 천천히 다시 가면 돼요.", 1200);
-    setTimeout(() => this.player?.clearTint().setData("bumped", false), 700);
-  }
-
-  async chooseFactory(index) {
-    if (this.busy) return;
-    this.busy = true;
-    this.physics.pause();
-    const selected = await this.ui.choiceCard({
-      kicker: `나를 알아가는 질문 ${index + 1}/3`,
-      title: index === 0 ? "나는 무엇을 좋아하지?" : index === 1 ? "시간 가는 줄 모르고 하는 것은?" : "이번 주에 해보고 싶은 것은?",
-      help: "정답은 없어요. 지금 마음에 닿는 것을 하나 골라 보세요.",
-      options: INTEREST_OPTIONS
-    });
-    const interests = [...new Set([...(this.getSave().interests || []), selected])];
-    this.checkpoint("copyFactory", { interests });
-    this.factoryGateDone.add(index);
-    this.player.clearTint().setTint([0x77c8ff, 0x8be6af, 0xffd166][index]);
-    this.physics.resume();
-    this.setPlay("copyFactory", "복사본 공장", `나만의 색 ${index + 1}/3 · 계속 오른쪽으로 가세요.`);
-    this.busy = false;
-  }
-
-  async finishFactory() {
-    if (this.busy) return;
-    this.busy = true;
+    const answers = await this.ui.dayReflectionGame();
+    const interests = [...new Set(answers)];
+    this.checkpoint("originalNote", { interests, dayReflection: answers });
     await this.ui.storyCard({
-      kicker: "공장 밖으로",
-      title: "나는 복사본이 아니에요",
-      html: `<p>다른 사람의 좋은 모습을 닮아갈 수는 있어요. 하지만 나를 지우지는 않아도 돼요.</p><p class="big-line">하느님께서는 우리 모두를 원본으로 만드셨어요.</p>`
+      kicker: "나의 하루를 돌아보며",
+      title: "완벽한 하루가 아니어도 괜찮아요",
+      html: `<p>아침부터 저녁까지 내가 무엇을 좋아하고, 누구를 바라보고, 어떻게 쉬는지 살펴보았어요.</p><p><span class="speaker">카를로</span> “작은 선택 하나에도 예수님을 초대할 수 있어!”</p><p class="big-line">하느님께서는 오늘의 나와 함께 걸으세요.</p>`
     });
     this.goto("originalNote");
   }
@@ -652,62 +643,28 @@ export class OrientationScene extends Phaser.Scene {
     this.mode = "quietChurch";
     this.cameras.main.setBackgroundColor(C.church);
     this.add.rectangle(W / 2, H / 2, W, H, C.church);
-    for (let x = 90; x < W; x += 150) this.add.rectangle(x, H - 370, 92, 230, 0x2e2944).setDepth(2);
-    this.add.rectangle(W / 2, H / 2, 420, 700, 0x282442).setStrokeStyle(12, 0x5b4c68).setDepth(3);
-    this.add.rectangle(W / 2, H / 2 + 130, 140, 120, 0x765b3a).setStrokeStyle(8, 0xd9b86a).setDepth(5);
-    this.add.circle(W / 2, H / 2 + 85, 23, 0xfff1b0, .75).setDepth(6);
-    [W / 2 - 145, W / 2 + 145].forEach((x) => {
-      this.add.rectangle(x, H / 2 + 180, 15, 95, 0xe8ddc0).setDepth(5);
-      const flame = this.add.ellipse(x, H / 2 + 110, 22, 38, 0xffd166, .8).setDepth(6);
-      this.tweens.add({ targets: flame, scaleY: .75, alpha: .5, yoyo: true, repeat: -1, duration: 500 + (x % 80) });
-    });
     await this.ui.storyCard({
       kicker: "조용한 성당",
-      title: "여기서는 아무것도 하지 않아도 돼",
-      html: `<p><span class="speaker">카를로</span> “10초 동안 그냥 조용히 있어볼래?”</p><p>버튼을 눌러도 실패가 아니에요. 다시 고요해지면 돼요.</p>`,
-      actions: [{ label: "조용히 있기", value: "next", primary: true }]
+      title: "카를로가 성체조배를 하자고 했어요",
+      html: `<p><span class="speaker">카를로</span> “우리 잠깐 성체조배를 할래?”</p><p><span class="speaker">나</span> “성체조배가 뭐야?”</p><p><span class="speaker">카를로</span> “감실 안에는 성체가 모셔져 있어. 우리는 그 성체 안에 예수님께서 실제로 계심을 믿어.”</p><p>“어려운 일을 하지 않아도 돼. 예수님을 바라보면 돼. 기쁜 일, 속상한 일, 궁금한 일도 마음으로 이야기해도 괜찮아.”</p>`,
+      actions: [{ label: "우리 성당 감실 바라보기", value: "next", primary: true }]
     });
-    await this.runSilence();
+    this.ui.setHud("성체조배", "우리 성당 감실을 바라보며 예수님과 10초 동안 함께 있어요.");
+    await this.ui.adorationTimer(10, "말을 하지 않아도 괜찮아요. 성체 안에 계신 예수님을 바라보세요.");
     await this.ui.storyCard({
-      kicker: "고요 속에서",
-      title: "예수님께서 기다리고 계세요",
-      html: `<p>성체 안에서 예수님께서 우리를 기다리고 계세요.</p><p><span class="speaker">카를로</span> “나는 여기가 참 좋았어.”</p><p class="big-line">“성체성사는 천국으로 가는 나의 고속도로야.”</p>`
+      kicker: "10초 성체조배 완료",
+      title: "카를로가 활짝 웃었어요",
+      html: `<p><span class="speaker">카를로</span> “정말 잘했어! 가만히 예수님을 바라본 것도 멋진 기도야.”</p><p>“이번에는 30초 동안 함께 있어볼까? 하고 싶은 이야기가 있으면 마음으로 천천히 말해 봐.”</p>`,
+      actions: [{ label: "30초 성체조배 시작", value: "next", primary: true }]
+    });
+    this.ui.setHud("성체조배", "이번에는 예수님과 30초 동안 더 천천히 머물러요.");
+    await this.ui.adorationTimer(30, "예수님께 오늘 있었던 일을 말씀드리거나, 조용히 바라보기만 해도 좋아요.");
+    await this.ui.storyCard({
+      kicker: "30초 성체조배 완료",
+      title: "예수님과 함께 머물렀어요",
+      html: `<p><span class="speaker">카를로</span> “대단해! 예수님께서는 네가 찾아온 것을 정말 기뻐하실 거야.”</p><p>카를로는 성체조배를 좋아했고, 성체 안에 계신 예수님을 가장 소중한 친구로 만났어요.</p><p class="big-line">“성체성사는 천국으로 가는 나의 고속도로야.”</p>`
     });
     this.goto("goodPoints");
-  }
-
-  runSilence() {
-    this.ui.setPlayMode(false);
-    this.ui.setHud("조용한 성당", "10초 동안 잠깐 고요히 있어보세요.");
-    document.querySelector("#menu-button").classList.add("is-hidden");
-    return new Promise((resolve) => {
-      let start = performance.now();
-      let finished = false;
-      const label = this.addLabel(W / 2, H - 400, "10", { size: "54px", color: "#ffe7a3" });
-      const guide = this.addLabel(W / 2, H - 325, "아무것도 하지 않아도 괜찮아요.", { size: "23px", color: "#b9bed3", wrap: 720 });
-      const reset = (event) => {
-        if (finished || event.target?.closest?.("#menu-button")) return;
-        start = performance.now();
-        guide.setText("괜찮아요. 다시 조용히 있어봐요.");
-      };
-      window.addEventListener("pointerdown", reset, true);
-      window.addEventListener("keydown", reset, true);
-      const tick = () => {
-        if (finished) return;
-        const remaining = Math.max(0, 10 - (performance.now() - start) / 1000);
-        label.setText(remaining > 0 ? String(Math.ceil(remaining)) : "고요");
-        if (remaining <= 0) {
-          finished = true;
-          window.removeEventListener("pointerdown", reset, true);
-          window.removeEventListener("keydown", reset, true);
-          document.querySelector("#menu-button").classList.remove("is-hidden");
-          this.time.delayedCall(700, () => resolve());
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
   }
 
   async goodPointsStage() {
@@ -1001,13 +958,19 @@ export class OrientationScene extends Phaser.Scene {
         actions: [{ label: "카를로의 마지막 말", value: "quote", primary: true }]
       });
     }
-    await this.ui.storyCard({
+    const finalAction = await this.ui.storyCard({
       kicker: "성 카를로 아쿠티스의 말",
       title: "“모든 사람은 원본으로 태어나지만 많은 사람은 복사본으로 죽습니다.”",
       html: `<p>다른 사람의 복사본이 아니라, 하느님께서 만드신 나로 살아가요.</p><p class="big-line">카를로와 함께 걷고, 예수님을 따라가요.</p>`,
-      actions: [{ label: "오리엔테이션 마치기", value: "title", primary: true }]
+      actions: [
+        { label: "다시 처음부터 시작", value: "restart", primary: true },
+        { label: "처음 화면으로", value: "title", primary: false }
+      ]
     });
-    this.goto("title");
+    if (finalAction === "restart") {
+      localStorage.removeItem("original-mode-orientation-v1");
+      window.location.reload();
+    } else this.goto("title");
   }
 
   escapeHtml(value) {
@@ -1044,6 +1007,14 @@ export class OrientationScene extends Phaser.Scene {
       }
     }
     if (body.velocity.x !== 0) this.player.setFlipX(body.velocity.x < 0);
+    if (this.mode === "carloDay" && this.carloCompanion?.active) {
+      const direction = body.velocity.x < -5 ? 1 : -1;
+      const targetX = this.player.x + direction * 95;
+      const targetY = this.player.y + 18 + Math.sin(time / 150) * 5;
+      this.carloCompanion.x = Phaser.Math.Linear(this.carloCompanion.x, targetX, .09);
+      this.carloCompanion.y = Phaser.Math.Linear(this.carloCompanion.y, targetY, .12);
+      this.carloCompanion.setFlipX(direction > 0);
+    }
 
     if (this.player.y > this.physics.world.bounds.height - 20 && this.mode === "lookUp") this.resetPlayer?.();
     this.findNearby();
@@ -1086,12 +1057,7 @@ export class OrientationScene extends Phaser.Scene {
   }
 
   checkStageTriggers() {
-    if (this.mode === "copyFactory") {
-      this.factoryGates.forEach((x, index) => {
-        if (this.player.x > x && !this.factoryGateDone.has(index)) this.chooseFactory(index);
-      });
-      if (this.player.x > 4230 && this.factoryGateDone.size >= 3) this.finishFactory();
-    }
+    // 각 장면의 완료 조건은 해당 미니게임 안에서 처리합니다.
   }
 }
 
